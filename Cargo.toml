@@ -1,0 +1,28 @@
+[package]
+name = "ferrogallic"
+version = "0.0.0"
+authors = ["Erik Desjardins <erikdesjardins@users.noreply.github.com>"]
+description = "Clone of skribble.io."
+repository = "https://github.com/erikdesjardins/ferrogallic"
+license = "MIT"
+edition = "2018"
+
+[workspace]
+members = [".", "ferrogallic_api", "ferrogallic_web"]
+
+[dependencies]
+ferrogallic_api = { path = "./ferrogallic_api" }
+env_logger = { version = "0.7", default-features = false, features = ["humantime"] }
+log = "0.4"
+structopt = { version = "0.3", default-features = false }
+tokio = { version = "0.2" , features = ["macros"] }
+warp = { version = "0.2", default-features = false }
+
+[profile.release]
+panic = "abort"
+lto = true
+codegen-units = 1
+
+[profile.release.package.ferrogallic_web]
+# todo does this actually help?
+opt-level = "s"
