@@ -13,5 +13,7 @@ crate-type = ["cdylib"]
 [dependencies]
 ferrogallic_api = { path = "../ferrogallic_api" }
 console_error_panic_hook = "0.1"
+console_log = "0.1"
+log = "0.4"
 wasm-bindgen = "0.2"
 wee_alloc = "0.4.2"
