@@ -17,6 +17,7 @@ jobs:
       with:
         toolchain: stable
     - run: rustup component add rustfmt
+
     - run: cargo fmt --all -- --check
 
   clippy:
@@ -27,6 +28,9 @@ jobs:
       with:
         toolchain: stable
     - run: rustup component add clippy
+    - run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh -s -- -f
+
+    - run: wasm-pack build --dev --target web ferrogallic_web
     - run: RUSTFLAGS="-D warnings" cargo clippy --all
 
   test:
@@ -36,6 +40,9 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
+    - run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh -s -- -f
+
+    - run: wasm-pack build --dev --target web ferrogallic_web
     - run: cargo test --all
 
   build-linux:
@@ -46,10 +53,12 @@ jobs:
       with:
         toolchain: stable
     - run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh -s -- -f
+
     - run: wasm-pack build --release --target web ferrogallic_web
     - run: cargo build --release
     - run: strip target/release/ferrogallic
     - run: ls -lh target/release/ferrogallic
+
     - uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
       with:
