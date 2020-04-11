@@ -49,7 +49,7 @@ jobs:
     - run: wasm-pack build --dev --target web ferrogallic_web
     - run: cargo test --manifest-path ferrogallic/Cargo.toml
     - run: cargo test --manifest-path ferrogallic_api/Cargo.toml
-    - run: cargo test --manifest-path ferrogallic_web/Cargo.toml
+    - run: wasm-pack test --chrome --headless ferrogallic_web
 
   build-linux:
     runs-on: ubuntu-latest

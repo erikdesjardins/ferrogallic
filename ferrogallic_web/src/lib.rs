@@ -13,7 +13,7 @@ extern "C" {
 }
 
 #[wasm_bindgen(start)]
-pub fn main() {
+pub fn start() {
     #[cfg(debug_assertions)]
     console_error_panic_hook::set_once();
     #[cfg(debug_assertions)]

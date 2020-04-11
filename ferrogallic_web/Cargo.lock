@@ -106,6 +106,7 @@ dependencies = [
  "ferrogallic_api",
  "log",
  "wasm-bindgen",
+ "wasm-bindgen-test",
  "wee_alloc",
  "yew",
  "yew-router",
@@ -412,6 +413,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "535622e6be132bccd223f4bb2b8ac8d53cda3c7a6394944d3b2b33fb974f9d76"
 
 [[package]]
+name = "scoped-tls"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea6a9290e3c9cf0f18145ef7ffa62d68ee0bf5fcd651017e586dc7fd5da448c2"
+
+[[package]]
 name = "semver"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -577,6 +584,30 @@ name = "wasm-bindgen-shared"
 version = "0.2.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "daf76fe7d25ac79748a37538b7daeed1c7a6867c92d3245c12c6222e4a20d639"
+
+[[package]]
+name = "wasm-bindgen-test"
+version = "0.3.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "648da3460c6d2aa04b715a936329e2e311180efe650b2127d6267f4193ccac14"
+dependencies = [
+ "console_error_panic_hook",
+ "js-sys",
+ "scoped-tls",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test-macro",
+]
+
+[[package]]
+name = "wasm-bindgen-test-macro"
+version = "0.3.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf2f86cd78a2aa7b1fb4bb6ed854eccb7f9263089c79542dca1576a1518a8467"
+dependencies = [
+ "proc-macro2",
+ "quote",
+]
 
 [[package]]
 name = "web-sys"
