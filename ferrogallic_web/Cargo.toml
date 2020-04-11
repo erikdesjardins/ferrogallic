@@ -15,5 +15,12 @@ ferrogallic_api = { path = "../ferrogallic_api" }
 console_error_panic_hook = "0.1"
 console_log = "0.1"
 log = "0.4"
-wasm-bindgen = "0.2"
+wasm-bindgen = { version = "0.2", features = ["strict-macro"] }
 wee_alloc = "0.4.2"
+yew = { version = "0.14", features = ["web_sys"] }
+yew-router = { version = "0.11", features = ["web_sys"] }
+
+[profile.release]
+panic = "abort"
+lto = true
+codegen-units = 1

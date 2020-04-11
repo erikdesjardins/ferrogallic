@@ -7,11 +7,8 @@ repository = "https://github.com/erikdesjardins/ferrogallic"
 license = "MIT"
 edition = "2018"
 
-[workspace]
-members = [".", "ferrogallic_api", "ferrogallic_web"]
-
 [dependencies]
-ferrogallic_api = { path = "./ferrogallic_api" }
+ferrogallic_api = { path = "../ferrogallic_api" }
 env_logger = { version = "0.7", default-features = false, features = ["humantime"] }
 log = "0.4"
 structopt = { version = "0.3", default-features = false }
