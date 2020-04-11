@@ -22,7 +22,3 @@ warp = { version = "0.2", default-features = false }
 panic = "abort"
 lto = true
 codegen-units = 1
-
-[profile.release.package.ferrogallic_web]
-# todo does this actually help?
-opt-level = "s"
