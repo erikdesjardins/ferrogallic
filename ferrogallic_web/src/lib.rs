@@ -17,7 +17,7 @@ pub fn start() {
     #[cfg(debug_assertions)]
     console_error_panic_hook::set_once();
     #[cfg(debug_assertions)]
-    console_log::init().expect("initializing logger");
+    console_log::init_with_level(log::Level::Trace).expect("initializing logger");
 
     yew::start_app::<component::App>()
 }
