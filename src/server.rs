@@ -20,7 +20,7 @@ pub async fn run(addr: SocketAddr) {
 
     let index = warp::get().map(|| {
         string(
-            "<!DOCTYPE html><html><body><script type=module src='/static/index.js'></script></body></html>",
+            "<!doctype html><html><body><script type=module src='/static/index.js'></script></body></html>",
             "text/html",
         )
     });
