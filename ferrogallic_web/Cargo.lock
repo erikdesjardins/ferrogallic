@@ -96,15 +96,21 @@ dependencies = [
 [[package]]
 name = "ferrogallic_api"
 version = "0.0.0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "ferrogallic_web"
 version = "0.0.0"
 dependencies = [
+ "anyhow",
  "console_error_panic_hook",
  "console_log",
  "ferrogallic_api",
  "log",
+ "serde_json",
+ "thiserror",
  "wasm-bindgen",
  "wasm-bindgen-test",
  "wee_alloc",

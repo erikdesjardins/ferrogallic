@@ -1,6 +1,10 @@
+#![recursion_limit = "256"]
+
 use wasm_bindgen::prelude::wasm_bindgen;
 
+mod api;
 mod component;
+mod route;
 mod util;
 
 #[global_allocator]

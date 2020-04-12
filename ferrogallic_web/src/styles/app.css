@@ -1,0 +1,16 @@
+body {
+    margin-left: 0;
+    margin-right: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    margin: auto;
+}
+
+.error-bar {
+    background: lightsalmon;
+    font-family: monospace;
+    text-align: center;
+}

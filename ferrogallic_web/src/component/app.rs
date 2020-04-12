@@ -1,46 +1,58 @@
-use std::convert::Infallible;
+use std::rc::Rc;
 
+use anyhow::Error;
 use yew::{html, Component, ComponentLink, Html, ShouldRender};
 use yew_router::router::Router;
-use yew_router::Switch;
 
 use crate::component;
+use crate::route::Route;
 
-pub struct App;
+pub enum Msg {
+    SetError(Error),
+}
 
-#[derive(Clone, Switch)]
-enum Route {
-    #[to = "/join/{lobby}/as/{name}"]
-    InGame { lobby: String, name: String },
-    #[to = "/join/{lobby}"]
-    ChooseName { lobby: String },
-    #[to = "/"]
-    Index,
+pub struct App {
+    link: ComponentLink<Self>,
+    error: Option<Rc<Error>>,
 }
 
 impl Component for App {
-    type Message = Infallible;
+    type Message = Msg;
     type Properties = ();
 
-    fn create(_: Self::Properties, _: ComponentLink<Self>) -> Self {
-        Self
+    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
+        Self { link, error: None }
     }
 
-    fn update(&mut self, _: Self::Message) -> ShouldRender {
-        true
+    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+        match msg {
+            Msg::SetError(e) => {
+                self.error = Some(Rc::new(e));
+                true
+            }
+        }
     }
 
     fn view(&self) -> Html {
+        let css = include_str!("../styles/app.css");
+        let app_link = self.link.clone();
         html! {
-            <Router<Route, ()>
-                render = Router::render(|switch: Route| {
-                    match switch {
-                        Route::Index => html!{<component::Index/>},
-                        Route::ChooseName { lobby } => html!{<component::ChooseName lobby = lobby/>},
-                        Route::InGame { lobby, name } => html!{<component::InGame lobby = lobby, name = name/>},
-                    }
-                })
-            />
+            <>
+                <style>{css}</style>
+                <main>
+                    <Router<Route>
+                        render = Router::render(move |route| {
+                            match route {
+                                Route::Create => html!{<component::Create app_link=app_link.clone()/>},
+                                Route::ChooseName { lobby } => html!{<component::ChooseName lobby = lobby/>},
+                                Route::InGame { lobby, name } => html!{<component::InGame lobby = lobby, name = name/>},
+                            }
+                        }),
+                        redirect = Router::redirect(|_| Route::Create)
+                    />
+                </main>
+                <component::ErrorBar error=self.error.clone() />
+            </>
         }
     }
 }

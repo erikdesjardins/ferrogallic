@@ -1,9 +1,11 @@
 use structopt::StructOpt;
 
+mod api;
 mod opt;
 mod reply;
 mod server;
 mod web_files;
+mod words;
 
 #[tokio::main]
 async fn main() {
