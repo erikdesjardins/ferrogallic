@@ -9,9 +9,8 @@ use crate::words;
 
 pub fn random_name(_: ()) -> Result<RandomLobbyName, Infallible> {
     let mut rng = thread_rng();
-    let lobby = words::COMMON
+    let lobby = words::COMMON_FOR_ROOM_NAMES
         .choose_multiple(&mut rng, 3)
-        .copied()
         .map(|word| word[0..1].to_uppercase() + &word[1..])
         .collect();
     Ok(RandomLobbyName { lobby })
