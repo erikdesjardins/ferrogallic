@@ -8,20 +8,26 @@ use warp::{Filter, Rejection};
 use ferrogallic_api::ApiEndpoint;
 
 use crate::api;
+use crate::files;
 use crate::reply::{bytes, string};
-use crate::web_files;
 
 pub async fn run(addr: SocketAddr) {
+    let favicon = warp::get()
+        .and(warp::path!("favicon.ico"))
+        .map(|| bytes(files::FAVICON, "image/x-icon"));
+
     let static_files = warp::get().and(warp::path("static")).and({
-        let main_js = warp::path!("main.js").map(|| bytes(web_files::JS, "application/javascript"));
-        let main_wasm = warp::path!("main.wasm").map(|| bytes(web_files::WASM, "application/wasm"));
+        let main_js =
+            warp::path!("main.js").map(|| bytes(files::web::JS, "application/javascript"));
+        let main_wasm =
+            warp::path!("main.wasm").map(|| bytes(files::web::WASM, "application/wasm"));
         let index_js = warp::path!("index.js").map(|| {
             string(
                 "import init from '/static/main.js'; init('/static/main.wasm');",
                 "application/javascript",
             )
         });
-        main_js.or(main_wasm).or(index_js)
+        main_js.or(main_wasm).or(index_js).or(favicon)
     });
 
     let index = warp::get().map(|| {
@@ -38,7 +44,8 @@ pub async fn run(addr: SocketAddr) {
             random_lobby_name
         });
 
-    let server = static_files
+    let server = favicon
+        .or(static_files)
         .or(api)
         .or(index)
         .with(warp::log(env!("CARGO_PKG_NAME")));

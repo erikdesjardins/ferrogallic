@@ -1,10 +1,10 @@
 use structopt::StructOpt;
 
 mod api;
+mod files;
 mod opt;
 mod reply;
 mod server;
-mod web_files;
 mod words;
 
 #[tokio::main]
