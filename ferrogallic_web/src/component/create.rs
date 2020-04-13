@@ -1,16 +1,21 @@
 use anyhow::Error;
+use yew::agent::{Dispatched, Dispatcher};
 use yew::services::fetch::{FetchService, FetchTask};
-use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
+use yew::{html, Component, ComponentLink, Event, Html, InputData, Properties, ShouldRender};
+use yew_router::agent::{RouteAgent, RouteRequest};
 use yew_router::components::RouterAnchor;
+use yew_router::route::Route;
 
 use ferrogallic_api::RandomLobbyName;
 
 use crate::api::FetchServiceExt;
 use crate::component;
-use crate::route::Route;
+use crate::route::AppRoute;
 
 pub enum Msg {
-    SetLobbyName(String),
+    SetCustomLobbyName(String),
+    GoToCustomLobby,
+    SetGeneratedLobbyName(String),
     SetGlobalError(Error),
 }
 
@@ -22,9 +27,11 @@ pub struct Props {
 pub struct Create {
     link: ComponentLink<Self>,
     app_link: ComponentLink<component::App>,
+    router: Dispatcher<RouteAgent<()>>,
     fetch_service: FetchService,
-    fetching_lobby_name: Option<FetchTask>,
-    lobby_name: String,
+    custom_lobby_name: String,
+    fetching_generated_lobby_name: Option<FetchTask>,
+    generated_lobby_name: String,
 }
 
 impl Component for Create {
@@ -35,9 +42,11 @@ impl Component for Create {
         Self {
             link,
             app_link,
+            router: RouteAgent::dispatcher(),
             fetch_service: FetchService::new(),
-            fetching_lobby_name: None,
-            lobby_name: "".to_string(),
+            custom_lobby_name: "".to_string(),
+            fetching_generated_lobby_name: None,
+            generated_lobby_name: "".to_string(),
         }
     }
 
@@ -45,20 +54,32 @@ impl Component for Create {
         let started_fetch = self
             .fetch_service
             .fetch_api(&self.link, (), |res| match res {
-                Ok(RandomLobbyName { lobby }) => Msg::SetLobbyName(lobby),
+                Ok(RandomLobbyName { lobby }) => Msg::SetGeneratedLobbyName(lobby),
                 Err(e) => Msg::SetGlobalError(e),
             });
         match started_fetch {
-            Ok(task) => self.fetching_lobby_name = Some(task),
-            Err(e) => self.link.send_message(Msg::SetGlobalError(e)),
+            Ok(task) => self.fetching_generated_lobby_name = Some(task),
+            Err(e) => self.app_link.send_message(component::app::Msg::SetError(e)),
         }
         false
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::SetLobbyName(lobby) => {
-                self.lobby_name = lobby;
+            Msg::SetCustomLobbyName(lobby) => {
+                self.custom_lobby_name = lobby;
+                true
+            }
+            Msg::GoToCustomLobby => {
+                self.router.send(RouteRequest::ChangeRoute(Route::from(
+                    AppRoute::ChooseName {
+                        lobby: self.custom_lobby_name.clone(),
+                    },
+                )));
+                false
+            }
+            Msg::SetGeneratedLobbyName(lobby) => {
+                self.generated_lobby_name = lobby;
                 true
             }
             Msg::SetGlobalError(e) => {
@@ -74,19 +95,39 @@ impl Component for Create {
     }
 
     fn view(&self) -> Html {
-        let route = Route::ChooseName {
-            lobby: self.lobby_name.clone(),
+        let on_change_custom_game = self
+            .link
+            .callback(|e: InputData| Msg::SetCustomLobbyName(e.value));
+        let on_join_game = self.link.callback(|e: Event| {
+            e.prevent_default();
+            Msg::GoToCustomLobby
+        });
+        let generated_lobby = AppRoute::ChooseName {
+            lobby: self.generated_lobby_name.clone(),
         };
         html! {
             <>
                 <fieldset>
                     <legend>{"Join Game"}</legend>
+                    <form onsubmit=on_join_game>
+                        <input
+                            type="text"
+                            placeholder="Lobby Name"
+                            oninput=on_change_custom_game
+                            value=&self.custom_lobby_name
+                        />
+                        <input
+                            type="submit"
+                            value="Join"
+                            disabled=self.custom_lobby_name.is_empty()
+                        />
+                    </form>
                 </fieldset>
                 <fieldset>
                     <legend>{"New Game"}</legend>
-                    <RouterAnchor<Route> route=route>
-                        {&self.lobby_name}
-                    </RouterAnchor<Route>>
+                    <RouterAnchor<AppRoute> route=generated_lobby>
+                        {&self.generated_lobby_name}
+                    </RouterAnchor<AppRoute>>
                 </fieldset>
             </>
         }

@@ -1,7 +1,7 @@
 use yew_router::Switch;
 
 #[derive(Clone, Switch)]
-pub enum Route {
+pub enum AppRoute {
     #[to = "/join/{lobby}/as/{name}"]
     InGame { lobby: String, name: String },
     #[to = "/join/{lobby}"]
