@@ -34,7 +34,6 @@ impl Component for App {
     }
 
     fn view(&self) -> Html {
-        let css = include_str!("../styles/app.css");
         let app_link = self.link.clone();
         let render_app = Router::render(move |route| match route {
             AppRoute::Create => html! {<component::Create app_link=app_link.clone()/>},
@@ -46,7 +45,6 @@ impl Component for App {
         let default_redirect = Router::redirect(|_| AppRoute::Create);
         html! {
             <>
-                <style>{css}</style>
                 <main>
                     <Router<AppRoute> render=render_app redirect=default_redirect />
                 </main>
