@@ -39,8 +39,8 @@ impl Component for App {
         let render_app = Router::render(move |route| match route {
             AppRoute::Create => html! {<component::Create app_link=app_link.clone()/>},
             AppRoute::ChooseName { lobby } => html! {<component::ChooseName lobby=lobby/>},
-            AppRoute::InGame { lobby, name } => {
-                html! {<component::InGame lobby = lobby, name = name/>}
+            AppRoute::InGame { lobby, nickname } => {
+                html! {<component::InGame lobby=lobby, nickname=nickname/>}
             }
         });
         let default_redirect = Router::redirect(|_| AppRoute::Create);

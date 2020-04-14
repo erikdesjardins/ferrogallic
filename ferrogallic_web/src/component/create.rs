@@ -27,7 +27,7 @@ pub struct Props {
 pub struct Create {
     link: ComponentLink<Self>,
     app_link: ComponentLink<component::App>,
-    router: Dispatcher<RouteAgent<()>>,
+    router: Dispatcher<RouteAgent>,
     fetch_service: FetchService,
     custom_lobby_name: String,
     fetching_generated_lobby_name: Option<FetchTask>,
@@ -112,13 +112,13 @@ impl Component for Create {
                     <form onsubmit=on_join_game>
                         <input
                             type="text"
-                            placeholder="Lobby Name"
+                            placeholder="Lobby"
                             oninput=on_change_custom_game
                             value=&self.custom_lobby_name
                         />
                         <input
                             type="submit"
-                            value="Join"
+                            value="Go"
                             disabled=self.custom_lobby_name.is_empty()
                         />
                     </form>
@@ -126,7 +126,11 @@ impl Component for Create {
                 <fieldset>
                     <legend>{"New Game"}</legend>
                     <RouterAnchor<AppRoute> route=generated_lobby>
-                        {&self.generated_lobby_name}
+                        {if self.generated_lobby_name.is_empty() {
+                            "..."
+                        } else {
+                            &self.generated_lobby_name
+                        }}
                     </RouterAnchor<AppRoute>>
                 </fieldset>
             </>

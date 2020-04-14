@@ -1,13 +1,13 @@
-use std::convert::Infallible;
-
 use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
 
 use crate::util::NeqAssign;
 
+pub enum Msg {}
+
 #[derive(Clone, PartialEq, Properties)]
 pub struct Props {
     pub lobby: String,
-    pub name: String,
+    pub nickname: String,
 }
 
 pub struct InGame {
@@ -15,15 +15,15 @@ pub struct InGame {
 }
 
 impl Component for InGame {
-    type Message = Infallible;
+    type Message = Msg;
     type Properties = Props;
 
     fn create(props: Self::Properties, _: ComponentLink<Self>) -> Self {
         Self { props }
     }
 
-    fn update(&mut self, _: Self::Message) -> ShouldRender {
-        true
+    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+        match msg {}
     }
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
