@@ -94,7 +94,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ferrogallic_api"
+name = "ferrogallic_shared"
 version = "0.0.0"
 dependencies = [
  "serde",
@@ -107,12 +107,12 @@ dependencies = [
  "anyhow",
  "console_error_panic_hook",
  "console_log",
- "ferrogallic_api",
+ "ferrogallic_shared",
  "log",
- "serde_json",
  "thiserror",
  "wasm-bindgen",
  "wasm-bindgen-test",
+ "web-sys",
  "yew",
  "yew-router",
 ]

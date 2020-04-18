@@ -6,7 +6,7 @@ use yew_router::agent::{RouteAgent, RouteRequest};
 use yew_router::components::RouterAnchor;
 use yew_router::route::Route;
 
-use ferrogallic_api::RandomLobbyName;
+use ferrogallic_shared::api::RandomLobbyName;
 
 use crate::api::FetchServiceExt;
 use crate::component;
@@ -53,7 +53,7 @@ impl Component for Create {
     fn mounted(&mut self) -> ShouldRender {
         let started_fetch = self
             .fetch_service
-            .fetch_api(&self.link, (), |res| match res {
+            .fetch_api(&self.link, &(), |res| match res {
                 Ok(RandomLobbyName { lobby }) => Msg::SetGeneratedLobbyName(lobby),
                 Err(e) => Msg::SetGlobalError(e),
             });

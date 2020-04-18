@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 
-use ferrogallic_api::RandomLobbyName;
+use ferrogallic_shared::api::RandomLobbyName;
 
 use crate::words;
 
