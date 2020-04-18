@@ -3,7 +3,7 @@ use ferrogallic_shared::api::{ApiEndpoint, WsEndpoint};
 use std::marker::PhantomData;
 use thiserror::Error;
 use web_sys::window;
-use yew::format::Json;
+use yew::format::Bincode;
 use yew::services::fetch::{FetchService, FetchTask, Request, Response, StatusCode};
 use yew::services::websocket::{WebSocketService, WebSocketStatus, WebSocketTask};
 use yew::{Component, ComponentLink};
@@ -24,11 +24,11 @@ impl FetchServiceExt for FetchService {
         req: &<T as ApiEndpoint>::Req,
         f: impl Fn(Result<T, Error>) -> <C as Component>::Message + 'static,
     ) -> Result<FetchTask, Error> {
-        let request = Request::post(T::PATH).body(Json(req))?;
+        let request = Request::post(T::PATH).body(Bincode(req))?;
         self.fetch_binary(
             request,
-            link.callback(move |response: Response<Json<Result<T, Error>>>| {
-                let (_, Json(data)) = response.into_parts();
+            link.callback(move |response: Response<Bincode<Result<T, Error>>>| {
+                let (_, Bincode(data)) = response.into_parts();
                 f(data)
             }),
         )
@@ -69,7 +69,7 @@ impl WebSocketServiceExt for WebSocketService {
         };
         let task = self.connect(
             &url,
-            link.callback(move |Json(res)| f(res)),
+            link.callback(move |Bincode(res)| f(res)),
             link.callback(on_notification),
         )?;
         Ok(WebSocketApiTask(task, PhantomData))
@@ -80,6 +80,6 @@ pub struct WebSocketApiTask<T: WsEndpoint>(WebSocketTask, PhantomData<fn(T)>);
 
 impl<T: WsEndpoint> WebSocketApiTask<T> {
     pub fn send_api(&mut self, req: &<T as WsEndpoint>::Req) {
-        self.0.send_binary(Json(req))
+        self.0.send_binary(Bincode(req))
     }
 }

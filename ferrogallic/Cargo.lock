@@ -25,6 +25,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d5ca2cd0adc3f48f9e9ea5a6bbdf9ccc0bfade884847e484d452414c7ccffb3"
 
 [[package]]
+name = "bincode"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5753e2a71534719bf3f4e57006c3a4f0d2c672a4b676eec84161f763eca87dbf"
+dependencies = [
+ "byteorder",
+ "serde",
+]
+
+[[package]]
 name = "bitflags"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -122,12 +132,13 @@ name = "ferrogallic"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "bincode",
+ "bytes",
  "env_logger",
  "ferrogallic_shared",
  "futures",
  "log",
  "rand",
- "serde_json",
  "structopt",
  "tokio",
  "warp",

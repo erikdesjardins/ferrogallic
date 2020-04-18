@@ -1,4 +1,6 @@
 use anyhow::Error;
+use bincode;
+use bytes::buf::BufExt;
 use ferrogallic_shared::api::{ApiEndpoint, WsEndpoint};
 use ferrogallic_shared::config::MAX_WS_MESSAGE_SIZE;
 use futures::ready;
@@ -6,17 +8,14 @@ use futures::task::{Context, Poll};
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
-use warp::http::StatusCode;
-use warp::reply::{Json, WithStatus};
+use warp::http::{Response, StatusCode};
 use warp::ws::{Message, WebSocket};
 use warp::{Filter, Rejection, Reply, Sink, Stream};
 
 pub mod game;
 pub mod lobby;
 
-pub fn endpoint<T, E, F>(
-    f: F,
-) -> impl Filter<Extract = (WithStatus<Json>,), Error = Rejection> + Clone
+pub fn endpoint<T, E, F>(f: F) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone
 where
     T: ApiEndpoint,
     E: Into<Error>,
@@ -24,17 +23,31 @@ where
 {
     warp::path(T::PATH)
         .and(warp::path::end())
-        .and(warp::body::json())
-        .map(f)
-        .map(|reply: Result<T, E>| match reply {
-            Ok(body) => warp::reply::with_status(warp::reply::json(&body), StatusCode::OK),
-            Err(e) => {
-                let e = e.into();
-                log::error!("Error in API handler '{}': {}", T::PATH, e);
-                warp::reply::with_status(
-                    warp::reply::json(&e.to_string()),
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                )
+        .and(warp::body::aggregate())
+        .map(move |buf| {
+            let req = match bincode::deserialize_from(BufExt::reader(buf)) {
+                Ok(req) => req,
+                Err(e) => {
+                    log::warn!("Failed to deserialize request '{}': {}", T::PATH, e);
+                    return warp::reply::with_status(Response::default(), StatusCode::BAD_REQUEST);
+                }
+            };
+            let reply = match f(req) {
+                Ok(reply) => reply,
+                Err(e) => {
+                    log::error!("Error in API handler '{}': {}", T::PATH, e.into());
+                    return warp::reply::with_status(Response::default(), StatusCode::CONFLICT);
+                }
+            };
+            match bincode::serialize(&reply) {
+                Ok(body) => warp::reply::with_status(Response::new(body), StatusCode::OK),
+                Err(e) => {
+                    log::error!("Failed to serialize response '{}': {}", T::PATH, e);
+                    return warp::reply::with_status(
+                        Response::default(),
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                    );
+                }
             }
         })
 }
@@ -44,7 +57,7 @@ pub fn websocket<T, F, Fut, E>(
 ) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone
 where
     T: WsEndpoint,
-    F: Fn(JsonWebSocket<T>) -> Fut + Copy + Send + 'static,
+    F: Fn(TypedWebSocket<T>) -> Fut + Copy + Send + 'static,
     Fut: Future<Output = Result<(), E>> + Send,
     E: Into<Error>,
 {
@@ -54,7 +67,7 @@ where
         .map(move |ws: warp::ws::Ws| {
             ws.max_message_size(MAX_WS_MESSAGE_SIZE)
                 .on_upgrade(move |websocket| async move {
-                    let fut = f(JsonWebSocket(websocket, PhantomData));
+                    let fut = f(TypedWebSocket::new(websocket));
                     match fut.await {
                         Ok(()) => (),
                         Err(e) => {
@@ -66,14 +79,20 @@ where
         })
 }
 
-pub struct JsonWebSocket<T: WsEndpoint>(WebSocket, PhantomData<fn(T)>);
+pub struct TypedWebSocket<T: WsEndpoint>(WebSocket, PhantomData<fn(T)>);
 
-impl<T: WsEndpoint> Stream for JsonWebSocket<T> {
+impl<T: WsEndpoint> TypedWebSocket<T> {
+    fn new(ws: WebSocket) -> Self {
+        Self(ws, PhantomData)
+    }
+}
+
+impl<T: WsEndpoint> Stream for TypedWebSocket<T> {
     type Item = Result<<T as WsEndpoint>::Req, Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Poll::Ready(match ready!(Pin::new(&mut self.0).poll_next(cx)) {
-            Some(Ok(msg)) => match serde_json::from_slice(&msg.into_bytes()) {
+            Some(Ok(msg)) => match bincode::deserialize(msg.as_bytes()) {
                 Ok(req) => Some(Ok(req)),
                 Err(e) => Some(Err(e.into())),
             },
@@ -83,7 +102,7 @@ impl<T: WsEndpoint> Stream for JsonWebSocket<T> {
     }
 }
 
-impl<T: WsEndpoint> Sink<&T> for JsonWebSocket<T> {
+impl<T: WsEndpoint> Sink<&T> for TypedWebSocket<T> {
     type Error = Error;
 
     fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -94,7 +113,7 @@ impl<T: WsEndpoint> Sink<&T> for JsonWebSocket<T> {
     }
 
     fn start_send(mut self: Pin<&mut Self>, item: &T) -> Result<(), Self::Error> {
-        match serde_json::to_vec(item) {
+        match bincode::serialize(item) {
             Ok(msg) => match Pin::new(&mut self.0).start_send(Message::binary(msg)) {
                 Ok(()) => Ok(()),
                 Err(e) => Err(e.into()),
