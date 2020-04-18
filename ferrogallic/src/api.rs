@@ -1,5 +1,6 @@
 use anyhow::Error;
-use ferrogallic_shared::{ApiEndpoint, WsEndpoint};
+use ferrogallic_shared::api::{ApiEndpoint, WsEndpoint};
+use ferrogallic_shared::config::MAX_WS_MESSAGE_SIZE;
 use futures::ready;
 use futures::task::{Context, Poll};
 use std::future::Future;
@@ -51,7 +52,7 @@ where
         .and(warp::path::end())
         .and(warp::ws())
         .map(move |ws: warp::ws::Ws| {
-            ws.max_message_size(4 * 1024 * 1024)
+            ws.max_message_size(MAX_WS_MESSAGE_SIZE)
                 .on_upgrade(move |websocket| async move {
                     let fut = f(JsonWebSocket(websocket, PhantomData));
                     match fut.await {

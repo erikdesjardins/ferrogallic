@@ -1,6 +1,7 @@
 use crate::api;
 use crate::files;
 use crate::reply::{bytes, string};
+use ferrogallic_shared::config::MAX_REQUEST_SIZE;
 use std::net::SocketAddr;
 use warp::Filter;
 
@@ -38,7 +39,7 @@ pub async fn run(addr: SocketAddr) {
     });
 
     let api = warp::post()
-        .and(warp::body::content_length_limit(4 * 1024))
+        .and(warp::body::content_length_limit(MAX_REQUEST_SIZE))
         .and({
             let random_lobby_name = api::endpoint(api::lobby::random_name);
             random_lobby_name

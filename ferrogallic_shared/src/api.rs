@@ -1,5 +1,10 @@
-use crate::ApiEndpoint;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+
+pub trait ApiEndpoint: Serialize + DeserializeOwned + Send + 'static {
+    const PATH: &'static str;
+    type Req: Serialize + DeserializeOwned + Send;
+}
 
 #[derive(Deserialize, Serialize)]
 pub struct RandomLobbyName {
@@ -11,7 +16,10 @@ impl ApiEndpoint for RandomLobbyName {
     type Req = ();
 }
 
-use crate::WsEndpoint;
+pub trait WsEndpoint: Serialize + DeserializeOwned + Send + 'static {
+    const PATH: &'static str;
+    type Req: Serialize + DeserializeOwned + Send;
+}
 
 #[derive(Deserialize, Serialize)]
 pub enum Game {

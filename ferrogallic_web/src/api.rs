@@ -1,5 +1,5 @@
 use anyhow::Error;
-use ferrogallic_shared::{ApiEndpoint, WsEndpoint};
+use ferrogallic_shared::api::{ApiEndpoint, WsEndpoint};
 use std::marker::PhantomData;
 use thiserror::Error;
 use web_sys::window;
