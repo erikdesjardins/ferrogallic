@@ -1,11 +1,9 @@
-use std::rc::Rc;
-
-use anyhow::Error;
-use yew::{html, Component, ComponentLink, Html, ShouldRender};
-use yew_router::router::Router;
-
 use crate::component;
 use crate::route::AppRoute;
+use anyhow::Error;
+use std::rc::Rc;
+use yew::{html, Component, ComponentLink, Html, ShouldRender};
+use yew_router::router::Router;
 
 pub enum Msg {
     SetError(Error),

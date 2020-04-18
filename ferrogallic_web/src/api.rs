@@ -1,14 +1,12 @@
-use std::marker::PhantomData;
-
 use anyhow::Error;
+use ferrogallic_shared::{ApiEndpoint, WsEndpoint};
+use std::marker::PhantomData;
 use thiserror::Error;
 use web_sys::window;
 use yew::format::Json;
 use yew::services::fetch::{FetchService, FetchTask, Request, Response, StatusCode};
 use yew::services::websocket::{WebSocketService, WebSocketStatus, WebSocketTask};
 use yew::{Component, ComponentLink};
-
-use ferrogallic_shared::{ApiEndpoint, WsEndpoint};
 
 pub trait FetchServiceExt {
     fn fetch_api<C: Component, T: ApiEndpoint>(

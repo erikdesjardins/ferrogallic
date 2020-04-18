@@ -1,16 +1,14 @@
+use anyhow::Error;
+use ferrogallic_shared::{ApiEndpoint, WsEndpoint};
+use futures::ready;
+use futures::task::{Context, Poll};
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
-
-use anyhow::Error;
-use futures::ready;
-use futures::task::{Context, Poll};
 use warp::http::StatusCode;
 use warp::reply::{Json, WithStatus};
 use warp::ws::{Message, WebSocket};
 use warp::{Filter, Rejection, Reply, Sink, Stream};
-
-use ferrogallic_shared::{ApiEndpoint, WsEndpoint};
 
 pub mod game;
 pub mod lobby;

@@ -1,10 +1,8 @@
-use std::net::SocketAddr;
-
-use warp::Filter;
-
 use crate::api;
 use crate::files;
 use crate::reply::{bytes, string};
+use std::net::SocketAddr;
+use warp::Filter;
 
 pub async fn run(addr: SocketAddr) {
     let favicon = warp::get()

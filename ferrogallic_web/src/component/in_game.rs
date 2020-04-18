@@ -1,12 +1,10 @@
-use anyhow::{anyhow, Error};
-use yew::services::websocket::{WebSocketService, WebSocketStatus};
-use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
-
-use ferrogallic_shared::api::{Game, GameReq};
-
 use crate::api::{WebSocketApiTask, WebSocketServiceExt};
 use crate::component;
 use crate::util::NeqAssign;
+use anyhow::{anyhow, Error};
+use ferrogallic_shared::api::{Game, GameReq};
+use yew::services::websocket::{WebSocketService, WebSocketStatus};
+use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
 
 pub enum Msg {
     Ignore,

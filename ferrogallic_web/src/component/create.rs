@@ -1,16 +1,14 @@
+use crate::api::FetchServiceExt;
+use crate::component;
+use crate::route::AppRoute;
 use anyhow::Error;
+use ferrogallic_shared::api::RandomLobbyName;
 use yew::agent::{Dispatched, Dispatcher};
 use yew::services::fetch::{FetchService, FetchTask};
 use yew::{html, Component, ComponentLink, Event, Html, InputData, Properties, ShouldRender};
 use yew_router::agent::{RouteAgent, RouteRequest};
 use yew_router::components::RouterAnchor;
 use yew_router::route::Route;
-
-use ferrogallic_shared::api::RandomLobbyName;
-
-use crate::api::FetchServiceExt;
-use crate::component;
-use crate::route::AppRoute;
 
 pub enum Msg {
     SetCustomLobbyName(String),

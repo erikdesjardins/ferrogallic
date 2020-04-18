@@ -1,11 +1,8 @@
-use std::convert::Infallible;
-
+use crate::words;
+use ferrogallic_shared::api::RandomLobbyName;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
-
-use ferrogallic_shared::api::RandomLobbyName;
-
-use crate::words;
+use std::convert::Infallible;
 
 pub fn random_name(_: ()) -> Result<RandomLobbyName, Infallible> {
     let mut rng = thread_rng();

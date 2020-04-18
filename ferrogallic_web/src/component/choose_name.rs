@@ -1,10 +1,9 @@
+use crate::route::AppRoute;
+use crate::util::NeqAssign;
 use yew::agent::{Dispatched, Dispatcher};
 use yew::{html, Component, ComponentLink, Event, Html, InputData, Properties, ShouldRender};
 use yew_router::agent::{RouteAgent, RouteRequest};
 use yew_router::route::Route;
-
-use crate::route::AppRoute;
-use crate::util::NeqAssign;
 
 pub enum Msg {
     SetNickname(String),

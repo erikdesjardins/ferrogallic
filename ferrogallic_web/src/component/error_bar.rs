@@ -1,10 +1,8 @@
+use crate::util::NeqAssign;
+use anyhow::Error;
 use std::convert::Infallible;
 use std::rc::Rc;
-
-use anyhow::Error;
 use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
-
-use crate::util::NeqAssign;
 
 #[derive(Clone, Properties)]
 pub struct Props {

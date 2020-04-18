@@ -1,9 +1,7 @@
-use anyhow::Error;
-use futures::{SinkExt, StreamExt};
-
-use ferrogallic_shared::api::{Game, GameReq};
-
 use crate::api::JsonWebSocket;
+use anyhow::Error;
+use ferrogallic_shared::api::{Game, GameReq};
+use futures::{SinkExt, StreamExt};
 
 pub async fn game(mut ws: JsonWebSocket<Game>) -> Result<(), Error> {
     let req = match ws.next().await {
