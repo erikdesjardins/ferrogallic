@@ -1,8 +1,9 @@
 use crate::api;
 use crate::files;
 use crate::reply::{bytes, string};
-use ferrogallic_shared::config::MAX_REQUEST_SIZE;
+use ferrogallic_shared::config::MAX_REQUEST_BYTES;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use warp::Filter;
 
 pub async fn run(addr: SocketAddr) {
@@ -38,15 +39,17 @@ pub async fn run(addr: SocketAddr) {
         )
     });
 
+    let state = Arc::default();
+
     let api = warp::post()
-        .and(warp::body::content_length_limit(MAX_REQUEST_SIZE))
+        .and(warp::body::content_length_limit(MAX_REQUEST_BYTES))
         .and({
-            let random_lobby_name = api::endpoint(api::lobby::random_name);
+            let random_lobby_name = api::endpoint((), api::lobby::random_name);
             random_lobby_name
         });
 
     let ws = {
-        let game = api::websocket(api::game::game);
+        let game = api::websocket(state, api::game::join_game);
         game
     };
 

@@ -1,3 +1,7 @@
+* {
+    box-sizing: border-box;
+}
+
 body {
     margin-left: 0;
     margin-right: 0;
@@ -13,4 +17,23 @@ main {
     background: lightsalmon;
     font-family: monospace;
     text-align: center;
+}
+
+.game-container {
+    display: flex;
+}
+
+.guess-container {
+    display: flex;
+    flex-direction: column;
+    height: calc(100% - 20px);
+}
+
+.guesses {
+    flex: 1;
+    overflow-y: scroll;
+}
+
+button.selected {
+    border: solid 4px red;
 }

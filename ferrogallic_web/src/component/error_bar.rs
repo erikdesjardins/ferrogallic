@@ -1,8 +1,9 @@
 use crate::util::NeqAssign;
 use anyhow::Error;
-use std::convert::Infallible;
 use std::rc::Rc;
 use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
+
+pub enum Msg {}
 
 #[derive(Clone, Properties)]
 pub struct Props {
@@ -14,7 +15,7 @@ pub struct ErrorBar {
 }
 
 impl Component for ErrorBar {
-    type Message = Infallible;
+    type Message = Msg;
     type Properties = Props;
 
     fn create(Props { error }: Self::Properties, _: ComponentLink<Self>) -> Self {
@@ -23,8 +24,8 @@ impl Component for ErrorBar {
         }
     }
 
-    fn update(&mut self, _: Self::Message) -> bool {
-        true
+    fn update(&mut self, msg: Self::Message) -> bool {
+        match msg {}
     }
 
     fn change(&mut self, Props { error }: Self::Properties) -> ShouldRender {

@@ -2,9 +2,10 @@ use anyhow::Error;
 use bincode;
 use bytes::buf::BufExt;
 use ferrogallic_shared::api::{ApiEndpoint, WsEndpoint};
-use ferrogallic_shared::config::MAX_WS_MESSAGE_SIZE;
+use ferrogallic_shared::config::MAX_WS_MESSAGE_BYTES;
 use futures::ready;
 use futures::task::{Context, Poll};
+use std::convert::Infallible;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -15,16 +16,21 @@ use warp::{Filter, Rejection, Reply, Sink, Stream};
 pub mod game;
 pub mod lobby;
 
-pub fn endpoint<T, E, F>(f: F) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone
+pub fn endpoint<S, T, E, F>(
+    state: S,
+    f: F,
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone
 where
+    S: Clone + Send + 'static,
     T: ApiEndpoint,
     E: Into<Error>,
-    F: Fn(<T as ApiEndpoint>::Req) -> Result<T, E> + Clone + Send,
+    F: Fn(S, <T as ApiEndpoint>::Req) -> Result<T, E> + Clone + Send,
 {
     warp::path(T::PATH)
         .and(warp::path::end())
         .and(warp::body::aggregate())
-        .map(move |buf| {
+        .and(with_cloned(state))
+        .map(move |buf, state| {
             let req = match bincode::deserialize_from(BufExt::reader(buf)) {
                 Ok(req) => req,
                 Err(e) => {
@@ -32,7 +38,7 @@ where
                     return warp::reply::with_status(Response::default(), StatusCode::BAD_REQUEST);
                 }
             };
-            let reply = match f(req) {
+            let reply = match f(state, req) {
                 Ok(reply) => reply,
                 Err(e) => {
                     log::error!("Error in API handler '{}': {}", T::PATH, e.into());
@@ -52,22 +58,25 @@ where
         })
 }
 
-pub fn websocket<T, F, Fut, E>(
+pub fn websocket<S, T, F, Fut, E>(
+    state: S,
     f: F,
 ) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone
 where
+    S: Clone + Send + 'static,
     T: WsEndpoint,
-    F: Fn(TypedWebSocket<T>) -> Fut + Copy + Send + 'static,
+    F: Fn(S, TypedWebSocket<T>) -> Fut + Copy + Send + 'static,
     Fut: Future<Output = Result<(), E>> + Send,
     E: Into<Error>,
 {
     warp::path(T::PATH)
         .and(warp::path::end())
         .and(warp::ws())
-        .map(move |ws: warp::ws::Ws| {
-            ws.max_message_size(MAX_WS_MESSAGE_SIZE)
+        .and(with_cloned(state))
+        .map(move |ws: warp::ws::Ws, state| {
+            ws.max_message_size(MAX_WS_MESSAGE_BYTES)
                 .on_upgrade(move |websocket| async move {
-                    let fut = f(TypedWebSocket::new(websocket));
+                    let fut = f(state, TypedWebSocket::new(websocket));
                     match fut.await {
                         Ok(()) => (),
                         Err(e) => {
@@ -77,6 +86,10 @@ where
                     }
                 })
         })
+}
+
+fn with_cloned<T: Clone + Send>(val: T) -> impl Filter<Extract = (T,), Error = Infallible> + Clone {
+    warp::any().map(move || val.clone())
 }
 
 pub struct TypedWebSocket<T: WsEndpoint>(WebSocket, PhantomData<fn(T)>);

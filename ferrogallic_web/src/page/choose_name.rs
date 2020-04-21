@@ -1,25 +1,26 @@
 use crate::route::AppRoute;
 use crate::util::NeqAssign;
+use ferrogallic_shared::domain::{Lobby, Nickname};
 use yew::agent::{Dispatched, Dispatcher};
 use yew::{html, Component, ComponentLink, Event, Html, InputData, Properties, ShouldRender};
 use yew_router::agent::{RouteAgent, RouteRequest};
 use yew_router::route::Route;
 
 pub enum Msg {
-    SetNickname(String),
+    SetNickname(Nickname),
     GoToLobby,
 }
 
 #[derive(Clone, PartialEq, Properties)]
 pub struct Props {
-    pub lobby: String,
+    pub lobby: Lobby,
 }
 
 pub struct ChooseName {
     link: ComponentLink<Self>,
     router: Dispatcher<RouteAgent>,
     props: Props,
-    nickname: String,
+    nickname: Nickname,
 }
 
 impl Component for ChooseName {
@@ -31,7 +32,7 @@ impl Component for ChooseName {
             link,
             router: RouteAgent::dispatcher(),
             props,
-            nickname: "".to_string(),
+            nickname: Nickname::new("".to_string()),
         }
     }
 
@@ -57,7 +58,9 @@ impl Component for ChooseName {
     }
 
     fn view(&self) -> Html {
-        let on_change_nickname = self.link.callback(|e: InputData| Msg::SetNickname(e.value));
+        let on_change_nickname = self
+            .link
+            .callback(|e: InputData| Msg::SetNickname(Nickname::new(e.value)));
         let on_join_game = self.link.callback(|e: Event| {
             e.prevent_default();
             Msg::GoToLobby

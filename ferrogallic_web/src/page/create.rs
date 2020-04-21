@@ -1,8 +1,9 @@
 use crate::api::FetchServiceExt;
-use crate::component;
+use crate::app;
 use crate::route::AppRoute;
 use anyhow::Error;
-use ferrogallic_shared::api::RandomLobbyName;
+use ferrogallic_shared::api::lobby::RandomLobbyName;
+use ferrogallic_shared::domain::Lobby;
 use yew::agent::{Dispatched, Dispatcher};
 use yew::services::fetch::{FetchService, FetchTask};
 use yew::{html, Component, ComponentLink, Event, Html, InputData, Properties, ShouldRender};
@@ -11,25 +12,25 @@ use yew_router::components::RouterAnchor;
 use yew_router::route::Route;
 
 pub enum Msg {
-    SetCustomLobbyName(String),
+    SetCustomLobbyName(Lobby),
     GoToCustomLobby,
-    SetGeneratedLobbyName(String),
+    SetGeneratedLobbyName(Lobby),
     SetGlobalError(Error),
 }
 
 #[derive(Clone, Properties)]
 pub struct Props {
-    pub app_link: ComponentLink<component::App>,
+    pub app_link: ComponentLink<app::App>,
 }
 
 pub struct Create {
     link: ComponentLink<Self>,
-    app_link: ComponentLink<component::App>,
+    app_link: ComponentLink<app::App>,
     router: Dispatcher<RouteAgent>,
     fetch_service: FetchService,
-    custom_lobby_name: String,
+    custom_lobby_name: Lobby,
     fetching_generated_lobby_name: Option<FetchTask>,
-    generated_lobby_name: String,
+    generated_lobby_name: Lobby,
 }
 
 impl Component for Create {
@@ -42,9 +43,9 @@ impl Component for Create {
             app_link,
             router: RouteAgent::dispatcher(),
             fetch_service: FetchService::new(),
-            custom_lobby_name: "".to_string(),
+            custom_lobby_name: Lobby::new("".to_string()),
             fetching_generated_lobby_name: None,
-            generated_lobby_name: "".to_string(),
+            generated_lobby_name: Lobby::new("".to_string()),
         }
     }
 
@@ -57,7 +58,7 @@ impl Component for Create {
             });
         match started_fetch {
             Ok(task) => self.fetching_generated_lobby_name = Some(task),
-            Err(e) => self.app_link.send_message(component::app::Msg::SetError(e)),
+            Err(e) => self.app_link.send_message(app::Msg::SetError(e)),
         }
         false
     }
@@ -81,7 +82,7 @@ impl Component for Create {
                 true
             }
             Msg::SetGlobalError(e) => {
-                self.app_link.send_message(component::app::Msg::SetError(e));
+                self.app_link.send_message(app::Msg::SetError(e));
                 false
             }
         }
@@ -93,9 +94,9 @@ impl Component for Create {
     }
 
     fn view(&self) -> Html {
-        let on_change_custom_game = self
+        let on_change_custom_lobby = self
             .link
-            .callback(|e: InputData| Msg::SetCustomLobbyName(e.value));
+            .callback(|e: InputData| Msg::SetCustomLobbyName(Lobby::new(e.value)));
         let on_join_game = self.link.callback(|e: Event| {
             e.prevent_default();
             Msg::GoToCustomLobby
@@ -111,7 +112,7 @@ impl Component for Create {
                         <input
                             type="text"
                             placeholder="Lobby"
-                            oninput=on_change_custom_game
+                            oninput=on_change_custom_lobby
                             value=&self.custom_lobby_name
                         />
                         <input

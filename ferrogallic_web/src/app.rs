@@ -1,4 +1,5 @@
 use crate::component;
+use crate::page;
 use crate::route::AppRoute;
 use anyhow::Error;
 use std::rc::Rc;
@@ -34,10 +35,10 @@ impl Component for App {
     fn view(&self) -> Html {
         let app_link = self.link.clone();
         let render_app = Router::render(move |route| match route {
-            AppRoute::Create => html! {<component::Create app_link=app_link.clone()/>},
-            AppRoute::ChooseName { lobby } => html! {<component::ChooseName lobby=lobby/>},
+            AppRoute::Create => html! {<page::Create app_link=app_link.clone()/>},
+            AppRoute::ChooseName { lobby } => html! {<page::ChooseName lobby=lobby/>},
             AppRoute::InGame { lobby, nickname } => {
-                html! {<component::InGame app_link=app_link.clone() lobby=lobby nickname=nickname/>}
+                html! {<page::InGame app_link=app_link.clone() lobby=lobby nickname=nickname/>}
             }
         });
         let default_redirect = Router::redirect(|_| AppRoute::Create);

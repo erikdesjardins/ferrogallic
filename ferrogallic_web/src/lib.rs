@@ -1,9 +1,12 @@
-#![recursion_limit = "256"]
+#![recursion_limit = "1024"]
 
 use wasm_bindgen::prelude::wasm_bindgen;
 
 mod api;
+mod app;
+mod canvas;
 mod component;
+mod page;
 mod route;
 mod util;
 
@@ -19,5 +22,5 @@ pub fn start() {
     #[cfg(debug_assertions)]
     console_log::init_with_level(log::Level::Trace).expect("initializing logger");
 
-    yew::start_app::<component::App>()
+    yew::start_app::<app::App>()
 }

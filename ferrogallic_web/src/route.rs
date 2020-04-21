@@ -1,11 +1,12 @@
+use ferrogallic_shared::domain::{Lobby, Nickname};
 use yew_router::Switch;
 
 #[derive(Clone, Switch)]
 pub enum AppRoute {
     #[to = "/join/{lobby}/as/{nickname}"]
-    InGame { lobby: String, nickname: String },
+    InGame { lobby: Lobby, nickname: Nickname },
     #[to = "/join/{lobby}"]
-    ChooseName { lobby: String },
+    ChooseName { lobby: Lobby },
     #[to = "/create"]
     Create,
 }

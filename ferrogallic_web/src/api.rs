@@ -1,4 +1,4 @@
-use anyhow::Error;
+use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::{ApiEndpoint, WsEndpoint};
 use std::marker::PhantomData;
 use thiserror::Error;
@@ -45,7 +45,7 @@ pub trait WebSocketServiceExt {
         link: &ComponentLink<C>,
         f: impl Fn(Result<T, Error>) -> <C as Component>::Message + 'static,
         on_notification: impl Fn(WebSocketStatus) -> <C as Component>::Message + 'static,
-    ) -> Result<WebSocketApiTask<T>, &str>;
+    ) -> Result<WebSocketApiTask<T>, Error>;
 }
 
 impl WebSocketServiceExt for WebSocketService {
@@ -54,7 +54,7 @@ impl WebSocketServiceExt for WebSocketService {
         link: &ComponentLink<C>,
         f: impl Fn(Result<T, Error>) -> <C as Component>::Message + 'static,
         on_notification: impl Fn(WebSocketStatus) -> <C as Component>::Message + 'static,
-    ) -> Result<WebSocketApiTask<T>, &str> {
+    ) -> Result<WebSocketApiTask<T>, Error> {
         let url = match window()
             .map(|w| w.location())
             .and_then(|l| Some((l.protocol().ok()?, l.host().ok()?)))
@@ -64,14 +64,16 @@ impl WebSocketServiceExt for WebSocketService {
                 format!("{}//{}/{}", proto, host, T::PATH)
             }
             None => {
-                return Err("failed to get window.location");
+                return Err(anyhow!("Failed to get window.location"));
             }
         };
-        let task = self.connect(
-            &url,
-            link.callback(move |Bincode(res)| f(res)),
-            link.callback(on_notification),
-        )?;
+        let task = self
+            .connect(
+                &url,
+                link.callback(move |Bincode(res)| f(res)),
+                link.callback(on_notification),
+            )
+            .map_err(|e| anyhow!(e.to_string()))?;
         Ok(WebSocketApiTask(task, PhantomData))
     }
 }
