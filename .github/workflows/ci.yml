@@ -62,6 +62,7 @@ jobs:
     - run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh -s -- -f
 
     - run: wasm-pack build --release --target web ferrogallic_web
+    - run: ls -lh ferrogallic_web/pkg/ferrogallic_web_bg.wasm
     - run: cargo build --release --manifest-path ferrogallic/Cargo.toml --target=x86_64-unknown-linux-musl
     - run: strip ferrogallic/target/x86_64-unknown-linux-musl/release/ferrogallic
     - run: ls -lh ferrogallic/target/x86_64-unknown-linux-musl/release/ferrogallic
