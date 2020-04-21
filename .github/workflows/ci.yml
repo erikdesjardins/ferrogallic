@@ -58,16 +58,17 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
+        target: x86_64-unknown-linux-musl
     - run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh -s -- -f
 
     - run: wasm-pack build --release --target web ferrogallic_web
-    - run: cargo build --release --manifest-path ferrogallic/Cargo.toml
-    - run: strip ferrogallic/target/release/ferrogallic
-    - run: ls -lh ferrogallic/target/release/ferrogallic
+    - run: cargo build --release --manifest-path ferrogallic/Cargo.toml --target=x86_64-unknown-linux-musl
+    - run: strip ferrogallic/target/x86_64-unknown-linux-musl/release/ferrogallic
+    - run: ls -lh ferrogallic/target/x86_64-unknown-linux-musl/release/ferrogallic
 
     - uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        files: ferrogallic/target/release/ferrogallic
+        files: ferrogallic/target/x86_64-unknown-linux-musl/release/ferrogallic
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
