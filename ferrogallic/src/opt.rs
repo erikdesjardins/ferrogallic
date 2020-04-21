@@ -8,5 +8,5 @@ pub struct Options {
     #[structopt(short = "v", long = "verbose", parse(from_occurrences), global = true)]
     pub verbose: u8,
 
-    pub listen_addr: SocketAddr,
+    pub listen_addr: Option<SocketAddr>,
 }

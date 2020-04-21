@@ -1,3 +1,4 @@
+use std::env;
 use structopt::StructOpt;
 
 mod api;
@@ -13,6 +14,18 @@ async fn main() {
         verbose,
         listen_addr,
     } = opt::Options::from_args();
+
+    let listen_addr = match listen_addr {
+        Some(addr) => addr,
+        None => {
+            let port = env::var("PORT")
+                .unwrap_or_else(|e| panic!("No addr in args or PORT env var: {}", e));
+            let port = port
+                .parse()
+                .unwrap_or_else(|e| panic!("Failed to parse PORT env var: {}", e));
+            ([0, 0, 0, 0], port).into()
+        }
+    };
 
     env_logger::Builder::new()
         .filter_level(match verbose {
