@@ -220,6 +220,7 @@ impl Color {
         }
     }
 
+    #[allow(clippy::mixed_case_hex_literals, clippy::unreadable_literal)]
     pub fn argb(self) -> u32 {
         match self {
             Self::White => 0xffFFFFFF,
