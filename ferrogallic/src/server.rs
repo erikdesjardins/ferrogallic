@@ -6,6 +6,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use warp::Filter;
 
+#[allow(clippy::let_and_return)]
 pub async fn run(addr: SocketAddr) {
     let favicon = warp::get()
         .and(warp::path!("favicon.ico"))

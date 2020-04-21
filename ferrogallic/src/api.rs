@@ -49,10 +49,7 @@ where
                 Ok(body) => warp::reply::with_status(Response::new(body), StatusCode::OK),
                 Err(e) => {
                     log::error!("Failed to serialize response '{}': {}", T::PATH, e);
-                    return warp::reply::with_status(
-                        Response::default(),
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                    );
+                    warp::reply::with_status(Response::default(), StatusCode::INTERNAL_SERVER_ERROR)
                 }
             }
         })
@@ -77,12 +74,8 @@ where
             ws.max_message_size(MAX_WS_MESSAGE_BYTES)
                 .on_upgrade(move |websocket| async move {
                     let fut = f(state, TypedWebSocket::new(websocket));
-                    match fut.await {
-                        Ok(()) => (),
-                        Err(e) => {
-                            log::error!("Error in WS handler '{}': {}", T::PATH, e.into());
-                            ()
-                        }
+                    if let Err(e) = fut.await {
+                        log::error!("Error in WS handler '{}': {}", T::PATH, e.into());
                     }
                 })
         })
