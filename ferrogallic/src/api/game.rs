@@ -225,9 +225,11 @@ async fn game_loop(
                     give_rx_broadcast
                         .send(tx_broadcast.subscribe())
                         .map_err(|_| ())?;
-                    for &event in &canvas_events {
-                        tx.send(Game::Canvas { event }).await.map_err(|_| ())?;
-                    }
+                    tx.send(Game::CanvasBulk {
+                        events: canvas_events.clone(),
+                    })
+                    .await
+                    .map_err(|_| ())?;
                     Ok::<(), ()>(())
                 };
                 if let Err(()) = onboard_player().await {

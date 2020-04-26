@@ -8,6 +8,7 @@ pub enum Game {
     Heartbeat,
     Players { players: BTreeMap<UserId, Player> },
     Canvas { event: Canvas },
+    CanvasBulk { events: Vec<Canvas> },
 }
 
 #[derive(Debug, Deserialize, Serialize)]

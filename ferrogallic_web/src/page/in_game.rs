@@ -154,6 +154,14 @@ impl Component for InGame {
                 }
                 Game::Canvas { event } => {
                     self.render_to_virtual(event);
+                    self.schedule_render_to_canvas();
+                    false
+                }
+                Game::CanvasBulk { events } => {
+                    for event in events {
+                        self.render_to_virtual(event);
+                    }
+                    self.schedule_render_to_canvas();
                     false
                 }
             },
@@ -210,6 +218,7 @@ impl Component for InGame {
                 };
                 for &event in events {
                     self.render_to_virtual(event);
+                    self.schedule_render_to_canvas();
                     if let Some(ws) = &mut self.active_ws {
                         ws.send_api(&GameReq::Canvas { event });
                     }
@@ -219,6 +228,7 @@ impl Component for InGame {
             Msg::Undo => {
                 let event = Canvas::PopUndo;
                 self.render_to_virtual(event);
+                self.schedule_render_to_canvas();
                 if let Some(ws) = &mut self.active_ws {
                     ws.send_api(&GameReq::Canvas { event });
                 }
@@ -357,12 +367,15 @@ impl InGame {
     fn render_to_virtual(&mut self, event: Canvas) {
         if let Some((canvas, _)) = &mut self.canvas {
             canvas.handle_event(event);
-            if let scheduled @ None = &mut self.scheduled_render {
-                *scheduled = Some(
-                    self.render_service
-                        .request_animation_frame(self.link.callback(|_| Msg::Render)),
-                );
-            }
+        }
+    }
+
+    fn schedule_render_to_canvas(&mut self) {
+        if let scheduled @ None = &mut self.scheduled_render {
+            *scheduled = Some(
+                self.render_service
+                    .request_animation_frame(self.link.callback(|_| Msg::Render)),
+            );
         }
     }
 
