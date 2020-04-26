@@ -19,8 +19,11 @@ jobs:
     - run: rustup component add rustfmt
 
     - run: cargo fmt --manifest-path ferrogallic/Cargo.toml -- --check
+      if: "!cancelled()"
     - run: cargo fmt --manifest-path ferrogallic_shared/Cargo.toml -- --check
+      if: "!cancelled()"
     - run: cargo fmt --manifest-path ferrogallic_web/Cargo.toml -- --check
+      if: "!cancelled()"
 
   clippy:
     runs-on: ubuntu-latest
@@ -34,8 +37,11 @@ jobs:
 
     - run: wasm-pack build --dev --target web ferrogallic_web
     - run: RUSTFLAGS="-D warnings" cargo clippy --manifest-path ferrogallic/Cargo.toml
+      if: "!cancelled()"
     - run: RUSTFLAGS="-D warnings" cargo clippy --manifest-path ferrogallic_shared/Cargo.toml
+      if: "!cancelled()"
     - run: RUSTFLAGS="-D warnings" cargo clippy --manifest-path ferrogallic_web/Cargo.toml
+      if: "!cancelled()"
 
   test:
     runs-on: ubuntu-latest
@@ -48,8 +54,11 @@ jobs:
 
     - run: wasm-pack build --dev --target web ferrogallic_web
     - run: cargo test --manifest-path ferrogallic/Cargo.toml
+      if: "!cancelled()"
     - run: cargo test --manifest-path ferrogallic_shared/Cargo.toml
+      if: "!cancelled()"
     - run: wasm-pack test --chrome --headless ferrogallic_web
+      if: "!cancelled()"
 
   build-linux:
     runs-on: ubuntu-latest
