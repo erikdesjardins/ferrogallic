@@ -21,7 +21,7 @@ impl Component for Player {
         Self { props }
     }
 
-    fn update(&mut self, msg: Self::Message) -> bool {
+    fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {}
     }
 

@@ -24,7 +24,7 @@ impl Component for ColorToolbar {
         Self { game_link, color }
     }
 
-    fn update(&mut self, msg: Self::Message) -> bool {
+    fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {}
     }
 

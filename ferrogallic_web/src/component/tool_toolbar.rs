@@ -24,7 +24,7 @@ impl Component for ToolToolbar {
         Self { game_link, tool }
     }
 
-    fn update(&mut self, msg: Self::Message) -> bool {
+    fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {}
     }
 
