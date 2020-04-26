@@ -29,3 +29,4 @@ wasm-bindgen-test = "0.3"
 panic = "abort"
 lto = true
 codegen-units = 1
+opt-level = "s"
