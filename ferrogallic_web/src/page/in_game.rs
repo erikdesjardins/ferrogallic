@@ -1,6 +1,6 @@
 use crate::api::{WebSocketApiTask, WebSocketServiceExt};
 use crate::app;
-use crate::canvas::CanvasRenderingContext2dExt;
+use crate::canvas::VirtualCanvas;
 use crate::component;
 use crate::route::AppRoute;
 use crate::util::NeqAssign;
@@ -11,9 +11,10 @@ use ferrogallic_shared::domain::{Color, Lobby, Nickname, Tool, UserId};
 use std::collections::BTreeMap;
 use wasm_bindgen::JsCast;
 use web_sys::{CanvasRenderingContext2d, Element, HtmlCanvasElement};
+use yew::services::render::{RenderService, RenderTask};
 use yew::services::websocket::{WebSocketService, WebSocketStatus};
 use yew::{
-    html, Component, ComponentLink, Html, MouseEvent, NodeRef, PointerEvent, Properties,
+    html, Callback, Component, ComponentLink, Html, MouseEvent, NodeRef, PointerEvent, Properties,
     ShouldRender,
 };
 use yew_router::route::Route;
@@ -23,15 +24,17 @@ pub enum Msg {
     Message(Game),
     ConnStatus(WebSocketStatus),
     Pointer(PointerAction),
+    Undo,
+    Render,
     SetTool(Tool),
     SetColor(Color),
     SetGlobalError(Error),
 }
 
 pub enum PointerAction {
-    Down { x: u16, y: u16 },
-    Move { x: u16, y: u16 },
-    Up,
+    Down((u16, u16)),
+    Move((u16, u16)),
+    Up((u16, u16)),
 }
 
 #[derive(Clone, Properties)]
@@ -45,11 +48,13 @@ pub struct InGame {
     link: ComponentLink<Self>,
     app_link: ComponentLink<app::App>,
     ws_service: WebSocketService,
+    render_service: RenderService,
     lobby: Lobby,
     nickname: Nickname,
     active_ws: Option<WebSocketApiTask<Game>>,
+    scheduled_render: Option<RenderTask>,
     canvas_ref: NodeRef,
-    context: Option<CanvasRenderingContext2d>,
+    canvas: Option<(VirtualCanvas, CanvasRenderingContext2d)>,
     pointer: PointerState,
     tool: Tool,
     color: Color,
@@ -59,7 +64,7 @@ pub struct InGame {
 #[derive(Copy, Clone)]
 enum PointerState {
     Up,
-    Down,
+    Down { at: (u16, u16) },
 }
 
 impl Component for InGame {
@@ -71,11 +76,13 @@ impl Component for InGame {
             link,
             app_link: props.app_link,
             ws_service: WebSocketService::new(),
+            render_service: RenderService::new(),
             lobby: props.lobby,
             nickname: props.nickname,
             active_ws: None,
+            scheduled_render: None,
             canvas_ref: Default::default(),
-            context: None,
+            canvas: None,
             pointer: PointerState::Up,
             tool: Default::default(),
             color: Default::default(),
@@ -91,8 +98,7 @@ impl Component for InGame {
                 .flatten()
                 .and_then(|c| c.dyn_into::<CanvasRenderingContext2d>().ok())
             {
-                context.initialize();
-                self.context = Some(context);
+                self.canvas = Some((VirtualCanvas::new(), context));
             }
         }
 
@@ -141,56 +147,85 @@ impl Component for InGame {
                 }
             },
             Msg::Message(msg) => match msg {
+                Game::Heartbeat => false,
                 Game::Players { players } => {
                     self.players = players;
                     true
                 }
                 Game::Canvas { event } => {
-                    if let Some(context) = &self.context {
-                        context.handle_event(event);
-                    }
+                    self.render_to_virtual(event);
                     false
                 }
             },
             Msg::Pointer(action) => {
-                let event = match (self.tool, action) {
-                    (Tool::Pen(width), PointerAction::Down { x, y }) => {
-                        self.pointer = PointerState::Down;
-                        Some(Canvas::LineStart {
-                            x,
-                            y,
-                            width,
-                            color: self.color,
-                        })
+                let one_event;
+                let two_events;
+                let events: &[Canvas] = match (self.tool, action) {
+                    (Tool::Pen(_), PointerAction::Down(at)) => {
+                        self.pointer = PointerState::Down { at };
+                        &[]
                     }
-                    (Tool::Pen(_), PointerAction::Move { x, y }) => {
-                        if let PointerState::Down = self.pointer {
-                            Some(Canvas::LineTo { x, y })
-                        } else {
-                            None
+                    (Tool::Pen(width), PointerAction::Move(to)) => match self.pointer {
+                        PointerState::Down { at: from } if to != from => {
+                            self.pointer = PointerState::Down { at: to };
+                            one_event = [Canvas::Line {
+                                from,
+                                to,
+                                width,
+                                color: self.color,
+                            }];
+                            &one_event
                         }
+                        PointerState::Down { .. } | PointerState::Up => &[],
+                    },
+                    (Tool::Pen(width), PointerAction::Up(to)) => match self.pointer {
+                        PointerState::Down { at: from } => {
+                            self.pointer = PointerState::Up;
+                            two_events = [
+                                Canvas::Line {
+                                    from,
+                                    to,
+                                    width,
+                                    color: self.color,
+                                },
+                                Canvas::PushUndo,
+                            ];
+                            &two_events
+                        }
+                        PointerState::Up => &[],
+                    },
+                    (Tool::Fill, PointerAction::Down(at)) => {
+                        two_events = [
+                            Canvas::Fill {
+                                at,
+                                color: self.color,
+                            },
+                            Canvas::PushUndo,
+                        ];
+                        &two_events
                     }
-                    (Tool::Pen(_), PointerAction::Up) => {
-                        self.pointer = PointerState::Up;
-                        None
-                    }
-                    (Tool::Fill, PointerAction::Down { x, y }) => Some(Canvas::Fill {
-                        x,
-                        y,
-                        color: self.color,
-                    }),
-                    (Tool::Fill, PointerAction::Move { .. }) | (Tool::Fill, PointerAction::Up) => {
-                        None
+                    (Tool::Fill, PointerAction::Move(_)) | (Tool::Fill, PointerAction::Up(_)) => {
+                        &[]
                     }
                 };
-                if let Some(event) = event {
-                    if let Some(context) = &self.context {
-                        context.handle_event(event);
-                    }
+                for &event in events {
+                    self.render_to_virtual(event);
                     if let Some(ws) = &mut self.active_ws {
                         ws.send_api(&GameReq::Canvas { event });
                     }
                 }
+                false
+            }
+            Msg::Undo => {
+                let event = Canvas::PopUndo;
+                self.render_to_virtual(event);
+                if let Some(ws) = &mut self.active_ws {
+                    ws.send_api(&GameReq::Canvas { event });
+                }
+                false
+            }
+            Msg::Render => {
+                self.render_to_canvas();
                 false
             }
             Msg::SetTool(tool) => {
@@ -227,38 +262,10 @@ impl Component for InGame {
             e.prevent_default();
             Msg::Ignore
         });
-        let on_pointer_down = self.link.callback(|e: PointerEvent| {
-            if e.buttons() == 1 {
-                e.prevent_default();
-                match e.target().and_then(|t| t.dyn_into::<Element>().ok()) {
-                    Some(target) => {
-                        let origin = target.get_bounding_client_rect();
-                        Msg::Pointer(PointerAction::Down {
-                            x: (e.client_x() as u16).saturating_sub(origin.x() as u16),
-                            y: (e.client_y() as u16).saturating_sub(origin.y() as u16),
-                        })
-                    }
-                    None => Msg::Ignore,
-                }
-            } else {
-                Msg::Ignore
-            }
-        });
-        let on_pointer_move = self.link.callback(|e: PointerEvent| {
-            match e.target().and_then(|t| t.dyn_into::<Element>().ok()) {
-                Some(target) => {
-                    let origin = target.get_bounding_client_rect();
-                    Msg::Pointer(PointerAction::Move {
-                        x: (e.client_x() as u16).saturating_sub(origin.x() as u16),
-                        y: (e.client_y() as u16).saturating_sub(origin.y() as u16),
-                    })
-                }
-                None => Msg::Ignore,
-            }
-        });
-        let on_pointer_up = self
-            .link
-            .callback(|_: PointerEvent| Msg::Pointer(PointerAction::Up));
+        let on_pointer_down =
+            self.handle_pointer_event_if(|e| e.buttons() == 1, PointerAction::Down);
+        let on_pointer_move = self.handle_pointer_event(PointerAction::Move);
+        let on_pointer_up = self.handle_pointer_event(PointerAction::Up);
 
         html! {
             <fieldset>
@@ -288,6 +295,7 @@ impl Component for InGame {
                         <section class="toolbar-container">
                             <component::ColorToolbar game_link=self.link.clone() color=self.color/>
                             <component::ToolToolbar game_link=self.link.clone() tool=self.tool/>
+                            <component::UndoToolbar game_link=self.link.clone()/>
                         </section>
                     </fieldset>
                     <fieldset>
@@ -310,6 +318,60 @@ impl Component for InGame {
                     </fieldset>
                 </article>
             </fieldset>
+        }
+    }
+}
+
+impl InGame {
+    fn handle_pointer_event(
+        &self,
+        f: impl Fn((u16, u16)) -> PointerAction + 'static,
+    ) -> Callback<PointerEvent> {
+        self.handle_pointer_event_if(|_| true, f)
+    }
+
+    fn handle_pointer_event_if(
+        &self,
+        pred: impl Fn(&PointerEvent) -> bool + 'static,
+        f: impl Fn((u16, u16)) -> PointerAction + 'static,
+    ) -> Callback<PointerEvent> {
+        self.link.callback(move |e: PointerEvent| {
+            if pred(&e) {
+                match e.target().and_then(|t| t.dyn_into::<Element>().ok()) {
+                    Some(target) => {
+                        e.prevent_default();
+                        let origin = target.get_bounding_client_rect();
+                        Msg::Pointer(f((
+                            (e.client_x() as u16).saturating_sub(origin.x() as u16),
+                            (e.client_y() as u16).saturating_sub(origin.y() as u16),
+                        )))
+                    }
+                    None => Msg::Ignore,
+                }
+            } else {
+                Msg::Ignore
+            }
+        })
+    }
+
+    fn render_to_virtual(&mut self, event: Canvas) {
+        if let Some((canvas, _)) = &mut self.canvas {
+            canvas.handle_event(event);
+            if let scheduled @ None = &mut self.scheduled_render {
+                *scheduled = Some(
+                    self.render_service
+                        .request_animation_frame(self.link.callback(|_| Msg::Render)),
+                );
+            }
+        }
+    }
+
+    fn render_to_canvas(&mut self) {
+        self.scheduled_render = None;
+        if let Some((canvas, context)) = &mut self.canvas {
+            if let Err(e) = canvas.render_to(context) {
+                log::warn!("Failed to render to canvas: {:?}", e);
+            }
         }
     }
 }

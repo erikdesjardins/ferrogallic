@@ -2,7 +2,7 @@ use crate::api::TypedWebSocket;
 use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::game::{Game, GameReq, Player, PlayerStatus};
 use ferrogallic_shared::config::{
-    WS_RX_BUFFER_SHARED, WS_TX_BUFFER_BROADCAST, WS_TX_BUFFER_PER_CLIENT,
+    WS_HEARTBEAT_INTERVAL, WS_RX_BUFFER_SHARED, WS_TX_BUFFER_BROADCAST, WS_TX_BUFFER_PER_CLIENT,
 };
 use ferrogallic_shared::domain::{Lobby, Nickname, UserId};
 use futures::{SinkExt, StreamExt};
@@ -15,10 +15,11 @@ use std::sync::Arc;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::task::spawn;
+use tokio::time::delay_for;
 
 #[derive(Default)]
 pub struct ActiveLobbies {
-    tx_to_lobby: Mutex<HashMap<Lobby, mpsc::Sender<Rx>>>,
+    tx_to_lobby: Mutex<HashMap<Lobby, mpsc::Sender<GameLoop>>>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -69,7 +70,7 @@ pub async fn join_game(
         let (give_rx_broadcast, get_rx_broadcast) = oneshot::channel();
 
         match tx_to_lobby
-            .send(Rx::Connect(
+            .send(GameLoop::Connect(
                 user_id,
                 nickname.clone(),
                 epoch,
@@ -119,7 +120,7 @@ pub async fn join_game(
                     }
                 },
                 inbound = ws.next() => match inbound {
-                    Some(req) => match tx_to_lobby.send(Rx::Message(user_id, req?)).await {
+                    Some(req) => match tx_to_lobby.send(GameLoop::Message(user_id, req?)).await {
                         Ok(()) => {}
                         Err(mpsc::error::SendError(_)) => {
                             log::info!("Player={} in Lobby={} dropped due to shutdown", nickname, lobby);
@@ -139,13 +140,13 @@ pub async fn join_game(
 
     // if this fails, nothing we can do at this point, everyone is gone
     let _ = tx_to_lobby_for_disconnect
-        .send(Rx::Disconnect(user_id, epoch))
+        .send(GameLoop::Disconnect(user_id, epoch))
         .await;
 
     res
 }
 
-enum Rx {
+enum GameLoop {
     Connect(
         UserId,
         Nickname,
@@ -155,6 +156,7 @@ enum Rx {
     ),
     Message(UserId, GameReq),
     Disconnect(UserId, Epoch),
+    SendHeartbeat,
 }
 
 #[derive(Clone)]
@@ -163,7 +165,11 @@ enum Broadcast {
     Exclude(UserId, Game),
 }
 
-async fn run_game_loop(lobby: Lobby, tx_self: mpsc::Sender<Rx>, rx: mpsc::Receiver<Rx>) {
+async fn run_game_loop(
+    lobby: Lobby,
+    tx_self: mpsc::Sender<GameLoop>,
+    rx: mpsc::Receiver<GameLoop>,
+) {
     match game_loop(&lobby, tx_self, rx).await {
         Ok(()) => log::info!("Lobby={} shutdown, no new connections", lobby),
         Err(e) => match e {
@@ -184,8 +190,8 @@ impl From<broadcast::SendError<Broadcast>> for GameLoopError {
 
 async fn game_loop(
     lobby: &Lobby,
-    mut tx_self: mpsc::Sender<Rx>,
-    mut rx: mpsc::Receiver<Rx>,
+    tx_self: mpsc::Sender<GameLoop>,
+    mut rx: mpsc::Receiver<GameLoop>,
 ) -> Result<(), GameLoopError> {
     log::info!("Lobby={} starting", lobby);
 
@@ -194,13 +200,27 @@ async fn game_loop(
     let mut player_state = BTreeMap::new();
     let mut canvas_events = Vec::new();
 
+    spawn({
+        let lobby = lobby.clone();
+        let mut tx_self = tx_self.clone();
+        async move {
+            loop {
+                delay_for(WS_HEARTBEAT_INTERVAL).await;
+                if let Err(e) = tx_self.send(GameLoop::SendHeartbeat).await {
+                    log::info!("Lobby={} stopping heartbeat: {}", lobby, e);
+                    return;
+                }
+            }
+        }
+    });
+
     loop {
         let msg = match rx.recv().await {
             Some(msg) => msg,
             None => return Ok(()),
         };
         match msg {
-            Rx::Connect(user_id, nickname, epoch, mut tx, give_rx_broadcast) => {
+            GameLoop::Connect(user_id, nickname, epoch, mut tx, give_rx_broadcast) => {
                 let onboard_player = || async {
                     give_rx_broadcast
                         .send(tx_broadcast.subscribe())
@@ -233,7 +253,7 @@ async fn game_loop(
                 }
                 tx_broadcast.send(Broadcast::Everyone(player_state_msg(&player_state)))?;
             }
-            Rx::Message(user_id, req) => match req {
+            GameLoop::Message(user_id, req) => match req {
                 GameReq::Canvas { event } => {
                     canvas_events.push(event);
                     tx_broadcast.send(Broadcast::Exclude(user_id, Game::Canvas { event }))?;
@@ -245,13 +265,16 @@ async fn game_loop(
                     }
                 }
             },
-            Rx::Disconnect(user_id, epoch) => {
+            GameLoop::Disconnect(user_id, epoch) => {
                 if let Some(state) = player_state.get_mut(&user_id) {
                     if state.epoch == epoch {
                         state.tx = None;
                         tx_broadcast.send(Broadcast::Everyone(player_state_msg(&player_state)))?;
                     }
                 }
+            }
+            GameLoop::SendHeartbeat => {
+                tx_broadcast.send(Broadcast::Everyone(Game::Heartbeat))?;
             }
         }
     }

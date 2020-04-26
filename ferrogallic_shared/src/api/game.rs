@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum Game {
+    Heartbeat,
     Players { players: BTreeMap<UserId, Player> },
     Canvas { event: Canvas },
 }
@@ -35,19 +36,16 @@ pub enum PlayerStatus {
 
 #[derive(Debug, Deserialize, Serialize, Copy, Clone)]
 pub enum Canvas {
-    LineStart {
-        x: u16,
-        y: u16,
+    Line {
+        from: (u16, u16),
+        to: (u16, u16),
         width: LineWidth,
         color: Color,
     },
-    LineTo {
-        x: u16,
-        y: u16,
-    },
     Fill {
-        x: u16,
-        y: u16,
+        at: (u16, u16),
         color: Color,
     },
+    PushUndo,
+    PopUndo,
 }

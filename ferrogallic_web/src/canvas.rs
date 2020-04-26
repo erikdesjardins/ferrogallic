@@ -1,52 +1,64 @@
 use ferrogallic_shared::api::game::Canvas;
-use ferrogallic_shared::config::{CANVAS_HEIGHT, CANVAS_WIDTH};
+use ferrogallic_shared::domain::CanvasBuffer;
+use std::mem;
 use wasm_bindgen::{Clamped, JsValue};
 use web_sys::{CanvasRenderingContext2d, ImageData};
 
+mod draw;
 mod flood_fill;
 
-pub trait CanvasRenderingContext2dExt {
-    fn initialize(&self);
-
-    fn handle_event(&self, event: Canvas);
+pub struct VirtualCanvas {
+    buffer: Box<CanvasBuffer>,
+    undo_stage: Option<Box<CanvasBuffer>>,
+    undo_stack: Vec<Box<CanvasBuffer>>,
 }
 
-impl CanvasRenderingContext2dExt for CanvasRenderingContext2d {
-    fn initialize(&self) {
-        self.set_line_cap("round");
-        self.set_line_join("bevel");
+impl VirtualCanvas {
+    pub fn new() -> Self {
+        Self {
+            buffer: CanvasBuffer::boxed(),
+            undo_stage: Default::default(),
+            undo_stack: Default::default(),
+        }
     }
 
-    fn handle_event(&self, event: Canvas) {
+    pub fn handle_event(&mut self, event: Canvas) {
         match event {
-            Canvas::LineStart { x, y, width, color } => {
-                self.begin_path();
-                self.set_line_width(width.px().into());
-                self.set_stroke_style(&JsValue::from_str(color.css()));
-                self.move_to(x.into(), y.into());
+            Canvas::Line {
+                from,
+                to,
+                width,
+                color,
+            } => {
+                draw::stroke_line(&mut self.buffer, from.0, from.1, to.0, to.1, width, color);
             }
-            Canvas::LineTo { x, y } => {
-                self.line_to(x.into(), y.into());
-                self.stroke();
-                self.begin_path();
-                self.move_to(x.into(), y.into());
+            Canvas::Fill { at, color } => {
+                flood_fill::fill(&mut self.buffer, at.0 as usize, at.1 as usize, color);
             }
-            Canvas::Fill { x, y, color } => {
-                if let Ok(image_data) =
-                    self.get_image_data(0., 0., CANVAS_WIDTH.into(), CANVAS_HEIGHT.into())
-                {
-                    let Clamped(mut data) = image_data.data();
-                    // todo flood_fill::fill(&mut data, x, y, color.argb());
-                    // todo actually this is virtually free, since we just create a view into wasm memory
-                    //  so let's store the buffer in rust, and RAF to call put_image_data
-                    if let Ok(image_data) = ImageData::new_with_u8_clamped_array(
-                        Clamped(&mut data),
-                        CANVAS_WIDTH.into(),
-                    ) {
-                        let _ = self.put_image_data(&image_data, 0., 0.);
-                    }
+            Canvas::PushUndo => {
+                let buffer = self.buffer.clone_boxed();
+                let prev_buffer = mem::replace(&mut self.undo_stage, Some(buffer));
+                if let Some(prev) = prev_buffer {
+                    self.undo_stack.push(prev);
                 }
             }
+            Canvas::PopUndo => {
+                self.undo_stage = None;
+                self.buffer = match self.undo_stack.pop() {
+                    Some(undo) => undo,
+                    // all the way back to the beginning
+                    None => CanvasBuffer::boxed(),
+                };
+            }
         }
+    }
+
+    pub fn render_to(&mut self, canvas: &CanvasRenderingContext2d) -> Result<(), JsValue> {
+        let width = self.buffer.x_len();
+        let image_data = ImageData::new_with_u8_clamped_array(
+            Clamped(self.buffer.as_mut_bytes()),
+            width as u32,
+        )?;
+        canvas.put_image_data(&image_data, 0., 0.)
     }
 }
