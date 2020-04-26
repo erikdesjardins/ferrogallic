@@ -1,5 +1,4 @@
 use anyhow::Error;
-use bincode;
 use bytes::buf::BufExt;
 use ferrogallic_shared::api::{ApiEndpoint, WsEndpoint};
 use ferrogallic_shared::config::MAX_WS_MESSAGE_BYTES;

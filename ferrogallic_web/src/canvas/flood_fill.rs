@@ -26,6 +26,7 @@ fn run_flood_fill(buf: &mut CanvasBuffer, mut x: usize, mut y: usize, from: Colo
     run_flood_fill_core(buf, x, y, from, to);
 }
 
+#[allow(clippy::useless_let_if_seq)]
 fn run_flood_fill_core(buf: &mut CanvasBuffer, mut x: usize, mut y: usize, from: Color, to: Color) {
     let mut last_row_len = 0;
     loop {
