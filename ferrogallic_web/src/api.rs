@@ -12,8 +12,8 @@ pub trait FetchServiceExt {
     fn fetch_api<C: Component, T: ApiEndpoint>(
         &mut self,
         link: &ComponentLink<C>,
-        req: &<T as ApiEndpoint>::Req,
-        f: impl Fn(Result<T, Error>) -> <C as Component>::Message + 'static,
+        req: &T::Req,
+        f: impl Fn(Result<T, Error>) -> C::Message + 'static,
     ) -> Result<FetchTask, Error>;
 }
 
@@ -21,8 +21,8 @@ impl FetchServiceExt for FetchService {
     fn fetch_api<C: Component, T: ApiEndpoint>(
         &mut self,
         link: &ComponentLink<C>,
-        req: &<T as ApiEndpoint>::Req,
-        f: impl Fn(Result<T, Error>) -> <C as Component>::Message + 'static,
+        req: &T::Req,
+        f: impl Fn(Result<T, Error>) -> C::Message + 'static,
     ) -> Result<FetchTask, Error> {
         let request = Request::post(T::PATH).body(Bincode(req))?;
         self.fetch_binary(
@@ -43,8 +43,8 @@ pub trait WebSocketServiceExt {
     fn connect_api<C: Component, T: WsEndpoint>(
         &mut self,
         link: &ComponentLink<C>,
-        f: impl Fn(Result<T, Error>) -> <C as Component>::Message + 'static,
-        on_notification: impl Fn(WebSocketStatus) -> <C as Component>::Message + 'static,
+        f: impl Fn(Result<T, Error>) -> C::Message + 'static,
+        on_notification: impl Fn(WebSocketStatus) -> C::Message + 'static,
     ) -> Result<WebSocketApiTask<T>, Error>;
 }
 
@@ -52,8 +52,8 @@ impl WebSocketServiceExt for WebSocketService {
     fn connect_api<C: Component, T: WsEndpoint>(
         &mut self,
         link: &ComponentLink<C>,
-        f: impl Fn(Result<T, Error>) -> <C as Component>::Message + 'static,
-        on_notification: impl Fn(WebSocketStatus) -> <C as Component>::Message + 'static,
+        f: impl Fn(Result<T, Error>) -> C::Message + 'static,
+        on_notification: impl Fn(WebSocketStatus) -> C::Message + 'static,
     ) -> Result<WebSocketApiTask<T>, Error> {
         let url = match window()
             .map(|w| w.location())
@@ -81,7 +81,7 @@ impl WebSocketServiceExt for WebSocketService {
 pub struct WebSocketApiTask<T: WsEndpoint>(WebSocketTask, PhantomData<fn(T)>);
 
 impl<T: WsEndpoint> WebSocketApiTask<T> {
-    pub fn send_api(&mut self, req: &<T as WsEndpoint>::Req) {
+    pub fn send_api(&mut self, req: &T::Req) {
         self.0.send_binary(Bincode(req))
     }
 }

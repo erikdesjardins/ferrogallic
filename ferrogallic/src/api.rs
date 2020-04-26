@@ -23,7 +23,7 @@ where
     S: Clone + Send + 'static,
     T: ApiEndpoint,
     E: Into<Error>,
-    F: Fn(S, <T as ApiEndpoint>::Req) -> Result<T, E> + Clone + Send,
+    F: Fn(S, T::Req) -> Result<T, E> + Clone + Send,
 {
     warp::path(T::PATH)
         .and(warp::path::end())
@@ -93,7 +93,7 @@ impl<T: WsEndpoint> TypedWebSocket<T> {
 }
 
 impl<T: WsEndpoint> Stream for TypedWebSocket<T> {
-    type Item = Result<<T as WsEndpoint>::Req, Error>;
+    type Item = Result<T::Req, Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Poll::Ready(match ready!(Pin::new(&mut self.0).poll_next(cx)) {
