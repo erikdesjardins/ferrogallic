@@ -9,5 +9,7 @@ pub const WS_TX_BUFFER_PER_CLIENT: usize = 64;
 
 pub const WS_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(10);
 
+pub const REMOVE_DISCONNECTED_PLAYERS: Duration = Duration::from_secs(60);
+
 pub const CANVAS_WIDTH: usize = 800;
 pub const CANVAS_HEIGHT: usize = 600;

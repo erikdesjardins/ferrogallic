@@ -2,7 +2,8 @@ use crate::api::TypedWebSocket;
 use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::game::{Game, GameReq, Player, PlayerStatus};
 use ferrogallic_shared::config::{
-    WS_HEARTBEAT_INTERVAL, WS_RX_BUFFER_SHARED, WS_TX_BUFFER_BROADCAST, WS_TX_BUFFER_PER_CLIENT,
+    REMOVE_DISCONNECTED_PLAYERS, WS_HEARTBEAT_INTERVAL, WS_RX_BUFFER_SHARED,
+    WS_TX_BUFFER_BROADCAST, WS_TX_BUFFER_PER_CLIENT,
 };
 use ferrogallic_shared::domain::{Lobby, Nickname, UserId};
 use futures::{SinkExt, StreamExt};
@@ -22,7 +23,7 @@ pub struct ActiveLobbies {
     tx_to_lobby: Mutex<HashMap<Lobby, mpsc::Sender<GameLoop>>>,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 struct Epoch(NonZeroUsize);
 
 impl Epoch {
@@ -156,6 +157,7 @@ enum GameLoop {
     ),
     Message(UserId, GameReq),
     Disconnect(UserId, Epoch),
+    Remove(UserId, Epoch),
     SendHeartbeat,
 }
 
@@ -188,6 +190,13 @@ impl From<broadcast::SendError<Broadcast>> for GameLoopError {
     }
 }
 
+#[derive(Debug)]
+struct Connection {
+    tx: mpsc::Sender<Game>,
+    epoch: Epoch,
+    player: Player,
+}
+
 async fn game_loop(
     lobby: &Lobby,
     tx_self: mpsc::Sender<GameLoop>,
@@ -197,7 +206,7 @@ async fn game_loop(
 
     let (tx_broadcast, _) = broadcast::channel(WS_TX_BUFFER_BROADCAST);
 
-    let mut player_state = BTreeMap::new();
+    let mut connections = BTreeMap::new();
     let mut canvas_events = Vec::new();
 
     spawn({
@@ -236,24 +245,28 @@ async fn game_loop(
                     log::warn!("Lobby={} Player={} failed onboarding", lobby, nickname);
                     continue;
                 }
-                match player_state.entry(user_id) {
+                match connections.entry(user_id) {
                     Entry::Vacant(entry) => {
                         log::info!("Lobby={} Player={} Epoch={} join", lobby, nickname, epoch);
-                        entry.insert(PlayerState {
-                            nickname,
+                        entry.insert(Connection {
+                            tx,
                             epoch,
-                            tx: Some(tx),
-                            score: 0,
+                            player: Player {
+                                nickname,
+                                status: PlayerStatus::Connected,
+                                score: 0,
+                            },
                         });
                     }
                     Entry::Occupied(mut entry) => {
                         log::info!("Lobby={} Player={} Epoch={} reconn", lobby, nickname, epoch);
-                        let state = entry.get_mut();
-                        state.epoch = epoch;
-                        state.tx = Some(tx);
+                        let conn = entry.get_mut();
+                        conn.tx = tx;
+                        conn.epoch = epoch;
+                        conn.player.status = PlayerStatus::Connected;
                     }
                 }
-                tx_broadcast.send(Broadcast::Everyone(player_state_msg(&player_state)))?;
+                tx_broadcast.send(Broadcast::Everyone(players_msg(&connections)))?;
             }
             GameLoop::Message(user_id, req) => match req {
                 GameReq::Canvas { event } => {
@@ -261,17 +274,34 @@ async fn game_loop(
                     tx_broadcast.send(Broadcast::Exclude(user_id, Game::Canvas { event }))?;
                 }
                 GameReq::Join { .. } => {
-                    if let Some(state) = player_state.remove(&user_id) {
-                        log::warn!("Lobby={} Player={} inval: {:?}", lobby, state.nickname, req);
-                        tx_broadcast.send(Broadcast::Everyone(player_state_msg(&player_state)))?;
+                    if let Some(conn) = connections.remove(&user_id) {
+                        let nickname = &conn.player.nickname;
+                        log::warn!("Lobby={} Player={} invalid msg: {:?}", lobby, nickname, req);
+                        tx_broadcast.send(Broadcast::Everyone(players_msg(&connections)))?;
                     }
                 }
             },
             GameLoop::Disconnect(user_id, epoch) => {
-                if let Some(state) = player_state.get_mut(&user_id) {
-                    if state.epoch == epoch {
-                        state.tx = None;
-                        tx_broadcast.send(Broadcast::Everyone(player_state_msg(&player_state)))?;
+                if let Some(conn) = connections.get_mut(&user_id) {
+                    if conn.epoch == epoch {
+                        conn.player.status = PlayerStatus::Disconnected;
+                        tx_broadcast.send(Broadcast::Everyone(players_msg(&connections)))?;
+                        spawn({
+                            let mut tx_self = tx_self.clone();
+                            async move {
+                                delay_for(REMOVE_DISCONNECTED_PLAYERS).await;
+                                let _ = tx_self.send(GameLoop::Remove(user_id, epoch)).await;
+                            }
+                        });
+                    }
+                }
+            }
+            GameLoop::Remove(user_id, epoch) => {
+                if let Entry::Occupied(entry) = connections.entry(user_id) {
+                    if entry.get().epoch == epoch {
+                        let conn = entry.remove();
+                        log::warn!("Lobby={} Player={} removed", lobby, conn.player.nickname);
+                        tx_broadcast.send(Broadcast::Everyone(players_msg(&connections)))?;
                     }
                 }
             }
@@ -282,30 +312,11 @@ async fn game_loop(
     }
 }
 
-struct PlayerState {
-    nickname: Nickname,
-    epoch: Epoch,
-    tx: Option<mpsc::Sender<Game>>,
-    score: u32,
-}
-
-fn player_state_msg(player_state: &BTreeMap<UserId, PlayerState>) -> Game {
+fn players_msg(connections: &BTreeMap<UserId, Connection>) -> Game {
     Game::Players {
-        players: player_state
+        players: connections
             .iter()
-            .map(|(user_id, state)| {
-                (
-                    *user_id,
-                    Player {
-                        nickname: state.nickname.clone(),
-                        score: state.score,
-                        status: match state.tx {
-                            Some(_) => PlayerStatus::Connected,
-                            None => PlayerStatus::Disconnected,
-                        },
-                    },
-                )
-            })
+            .map(|(user_id, conn)| (*user_id, conn.player.clone()))
             .collect(),
     }
 }

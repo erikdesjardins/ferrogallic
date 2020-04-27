@@ -25,8 +25,8 @@ impl WsEndpoint for Game {
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Player {
     pub nickname: Nickname,
-    pub score: u32,
     pub status: PlayerStatus,
+    pub score: u32,
 }
 
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialEq)]
