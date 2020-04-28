@@ -7,7 +7,7 @@ use yew_router::agent::{RouteAgent, RouteRequest};
 use yew_router::route::Route;
 
 pub enum Msg {
-    SetNickname(Nickname),
+    SetNick(Nickname),
     GoToLobby,
 }
 
@@ -20,7 +20,7 @@ pub struct ChooseName {
     link: ComponentLink<Self>,
     router: Dispatcher<RouteAgent>,
     props: Props,
-    nickname: Nickname,
+    nick: Nickname,
 }
 
 impl Component for ChooseName {
@@ -32,21 +32,21 @@ impl Component for ChooseName {
             link,
             router: RouteAgent::dispatcher(),
             props,
-            nickname: Nickname::new("".to_string()),
+            nick: Nickname::new("".to_string()),
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::SetNickname(nickname) => {
-                self.nickname = nickname;
+            Msg::SetNick(nick) => {
+                self.nick = nick;
                 true
             }
             Msg::GoToLobby => {
                 self.router
                     .send(RouteRequest::ChangeRoute(Route::from(AppRoute::InGame {
                         lobby: self.props.lobby.clone(),
-                        nickname: self.nickname.clone(),
+                        nick: self.nick.clone(),
                     })));
                 false
             }
@@ -58,9 +58,9 @@ impl Component for ChooseName {
     }
 
     fn view(&self) -> Html {
-        let on_change_nickname = self
+        let on_change_nick = self
             .link
-            .callback(|e: InputData| Msg::SetNickname(Nickname::new(e.value)));
+            .callback(|e: InputData| Msg::SetNick(Nickname::new(e.value)));
         let on_join_game = self.link.callback(|e: Event| {
             e.prevent_default();
             Msg::GoToLobby
@@ -72,13 +72,13 @@ impl Component for ChooseName {
                     <input
                         type="text"
                         placeholder="Nickname"
-                        oninput=on_change_nickname
-                        value=&self.nickname
+                        oninput=on_change_nick
+                        value=&self.nick
                     />
                     <input
                         type="submit"
                         value="Join"
-                        disabled=self.nickname.is_empty()
+                        disabled=self.nick.is_empty()
                     />
                 </form>
             </fieldset>

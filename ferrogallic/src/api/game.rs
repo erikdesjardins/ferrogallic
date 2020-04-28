@@ -2,8 +2,7 @@ use crate::api::TypedWebSocket;
 use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::game::{Game, GameReq, Player, PlayerStatus};
 use ferrogallic_shared::config::{
-    REMOVE_DISCONNECTED_PLAYERS, WS_HEARTBEAT_INTERVAL, WS_RX_BUFFER_SHARED,
-    WS_TX_BUFFER_BROADCAST, WS_TX_BUFFER_PER_CLIENT,
+    REMOVE_DISCONNECTED_PLAYERS, WS_HEARTBEAT_INTERVAL, WS_RX_BUFFER_SHARED, WS_TX_BUFFER_BROADCAST,
 };
 use ferrogallic_shared::domain::{Lobby, Nickname, UserId};
 use futures::{SinkExt, StreamExt};
@@ -20,7 +19,7 @@ use tokio::time::delay_for;
 
 #[derive(Default)]
 pub struct ActiveLobbies {
-    tx_to_lobby: Mutex<HashMap<Lobby, mpsc::Sender<GameLoop>>>,
+    tx_lobby: Mutex<HashMap<Lobby, mpsc::Sender<GameLoop>>>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -45,18 +44,18 @@ pub async fn join_game(
     state: Arc<ActiveLobbies>,
     mut ws: TypedWebSocket<Game>,
 ) -> Result<(), Error> {
-    let (lobby, nickname) = match ws.next().await {
-        Some(Ok(GameReq::Join { lobby, nickname })) => (lobby, nickname),
+    let (lobby, nick) = match ws.next().await {
+        Some(Ok(GameReq::Join { lobby, nick })) => (lobby, nick),
         Some(Ok(m)) => return Err(anyhow!("Initial message was not Join: {:?}", m)),
         Some(Err(e)) => return Err(e.context("Failed to receive initial message")),
         None => return Err(anyhow!("WS closed before initial message")),
     };
-    let user_id = nickname.user_id();
+    let user_id = nick.user_id();
     let epoch = Epoch::increment();
 
-    let (mut tx_to_lobby, mut rx_from_lobby, get_rx_broadcast) = loop {
-        let mut tx_to_lobby = state
-            .tx_to_lobby
+    let (mut tx_lobby, rx_onboard) = loop {
+        let mut tx_lobby = state
+            .tx_lobby
             .lock()
             .await
             .entry(lobby.clone())
@@ -67,69 +66,68 @@ pub async fn join_game(
             })
             .clone();
 
-        let (tx, rx_from_lobby) = mpsc::channel(WS_TX_BUFFER_PER_CLIENT);
-        let (give_rx_broadcast, get_rx_broadcast) = oneshot::channel();
+        let (tx_onboard, rx_onboard) = oneshot::channel();
 
-        match tx_to_lobby
-            .send(GameLoop::Connect(
-                user_id,
-                nickname.clone(),
-                epoch,
-                tx,
-                give_rx_broadcast,
-            ))
+        match tx_lobby
+            .send(GameLoop::Connect(user_id, epoch, nick.clone(), tx_onboard))
             .await
         {
-            Ok(()) => break (tx_to_lobby, rx_from_lobby, get_rx_broadcast),
+            Ok(()) => break (tx_lobby, rx_onboard),
             Err(mpsc::error::SendError(_)) => {
-                log::warn!("Player={} Lobby={} was shutdown, restart", nickname, lobby);
-                state.tx_to_lobby.lock().await.remove(&lobby);
+                log::warn!("Player={} Lobby={} was shutdown, restart", nick, lobby);
+                state.tx_lobby.lock().await.remove(&lobby);
             }
         }
     };
-    let mut tx_to_lobby_for_disconnect = tx_to_lobby.clone();
+    let mut tx_lobby_for_disconnect = tx_lobby.clone();
 
     let handle_messages = || async move {
-        let mut rx_broadcast = get_rx_broadcast.await?;
+        let Onboarding {
+            mut rx_broadcast,
+            messages,
+        } = rx_onboard.await?;
+
+        for msg in messages {
+            ws.send(&msg).await?;
+        }
 
         loop {
             select! {
-                outbound = rx_from_lobby.recv() => match outbound {
-                    Some(resp) => {
-                        ws.send(&resp).await?;
-                    }
-                    None => {
-                        log::info!("Player={} in Lobby={} dropped by game", nickname, lobby);
-                        return Ok(());
-                    }
-                },
                 outbound = rx_broadcast.recv() => match outbound {
                     Ok(broadcast) => match broadcast {
                         Broadcast::Everyone(resp) => ws.send(&resp).await?,
                         Broadcast::Exclude(uid, resp) if uid != user_id => ws.send(&resp).await?,
-                        Broadcast::Exclude(_, resp) => {
-                            log::trace!("Player={} in Lobby={} dropping excluded: {:?}", nickname, lobby, resp);
+                        Broadcast::Kill(uid, ep) if uid == user_id && ep == epoch => {
+                            log::info!("Player={} Lobby={} Epoch={} killed due to reconn", nick, lobby, epoch);
+                            return Ok(());
                         }
-                    }
-                    Err(broadcast::RecvError::Lagged(messages)) => {
-                        log::warn!("Player={} in Lobby={} lagged {} messages behind", nickname, lobby, messages);
+                        Broadcast::Exclude(_, _) | Broadcast::Kill(_, _) => {
+                            log::trace!("Player={} Lobby={} Epoch={} ignored: {:?}", nick, lobby, epoch, broadcast);
+                        }
+                    },
+                    Err(broadcast::RecvError::Lagged(msgs)) => {
+                        log::warn!("Player={} Lobby={} Epoch={} lagged {} messages", nick, lobby, epoch, msgs);
                         return Ok(());
                     }
                     Err(broadcast::RecvError::Closed) => {
-                        log::info!("Player={} in Lobby={} dropped due to shutdown", nickname, lobby);
+                        log::info!("Player={} Lobby={} Epoch={} dropped on shutdown", nick, lobby, epoch);
                         return Ok(());
                     }
                 },
                 inbound = ws.next() => match inbound {
-                    Some(req) => match tx_to_lobby.send(GameLoop::Message(user_id, req?)).await {
+                    Some(Ok(req)) => match tx_lobby.send(GameLoop::Message(user_id, epoch, req)).await {
                         Ok(()) => {}
                         Err(mpsc::error::SendError(_)) => {
-                            log::info!("Player={} in Lobby={} dropped due to shutdown", nickname, lobby);
+                            log::info!("Player={} Lobby={} Epoch={} dropped on shutdown", nick, lobby, epoch);
                             return Ok(());
                         }
                     }
+                    Some(Err(e)) => {
+                        log::info!("Player={} Lobby={} Epoch={} failed to receive: {}", nick, lobby, epoch, e);
+                        return Ok(());
+                    }
                     None => {
-                        log::info!("Player={} in Lobby={} disconnected", nickname, lobby);
+                        log::info!("Player={} Lobby={} Epoch={} disconnected", nick, lobby, epoch);
                         return Ok(());
                     }
                 },
@@ -140,31 +138,31 @@ pub async fn join_game(
     let res = handle_messages().await;
 
     // if this fails, nothing we can do at this point, everyone is gone
-    let _ = tx_to_lobby_for_disconnect
+    let _ = tx_lobby_for_disconnect
         .send(GameLoop::Disconnect(user_id, epoch))
         .await;
 
     res
 }
 
+struct Onboarding {
+    rx_broadcast: broadcast::Receiver<Broadcast>,
+    messages: Vec<Game>,
+}
+
 enum GameLoop {
-    Connect(
-        UserId,
-        Nickname,
-        Epoch,
-        mpsc::Sender<Game>,
-        oneshot::Sender<broadcast::Receiver<Broadcast>>,
-    ),
-    Message(UserId, GameReq),
+    Connect(UserId, Epoch, Nickname, oneshot::Sender<Onboarding>),
+    Message(UserId, Epoch, GameReq),
     Disconnect(UserId, Epoch),
     Remove(UserId, Epoch),
     SendHeartbeat,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 enum Broadcast {
     Everyone(Game),
     Exclude(UserId, Game),
+    Kill(UserId, Epoch),
 }
 
 async fn run_game_loop(
@@ -192,7 +190,6 @@ impl From<broadcast::SendError<Broadcast>> for GameLoopError {
 
 #[derive(Debug)]
 struct Connection {
-    tx: mpsc::Sender<Game>,
     epoch: Epoch,
     player: Player,
 }
@@ -229,56 +226,54 @@ async fn game_loop(
             None => return Ok(()),
         };
         match msg {
-            GameLoop::Connect(user_id, nickname, epoch, mut tx, give_rx_broadcast) => {
-                let onboard_player = || async {
-                    give_rx_broadcast
-                        .send(tx_broadcast.subscribe())
-                        .map_err(|_| ())?;
-                    tx.send(Game::CanvasBulk {
+            GameLoop::Connect(user_id, epoch, nick, tx_onboard) => {
+                let onboarding = Onboarding {
+                    rx_broadcast: tx_broadcast.subscribe(),
+                    messages: vec![Game::CanvasBulk {
                         events: canvas_events.clone(),
-                    })
-                    .await
-                    .map_err(|_| ())?;
-                    Ok::<(), ()>(())
+                    }],
                 };
-                if let Err(()) = onboard_player().await {
-                    log::warn!("Lobby={} Player={} failed onboarding", lobby, nickname);
+                if let Err(_) = tx_onboard.send(onboarding) {
+                    log::warn!("Lobby={} Player={} Epoch={} no onboard", lobby, nick, epoch);
                     continue;
                 }
                 match connections.entry(user_id) {
                     Entry::Vacant(entry) => {
-                        log::info!("Lobby={} Player={} Epoch={} join", lobby, nickname, epoch);
+                        log::info!("Lobby={} Player={} Epoch={} join", lobby, nick, epoch);
                         entry.insert(Connection {
-                            tx,
                             epoch,
                             player: Player {
-                                nickname,
+                                nick,
                                 status: PlayerStatus::Connected,
                                 score: 0,
                             },
                         });
                     }
                     Entry::Occupied(mut entry) => {
-                        log::info!("Lobby={} Player={} Epoch={} reconn", lobby, nickname, epoch);
+                        log::info!("Lobby={} Player={} Epoch={} reconn", lobby, nick, epoch);
                         let conn = entry.get_mut();
-                        conn.tx = tx;
                         conn.epoch = epoch;
                         conn.player.status = PlayerStatus::Connected;
                     }
                 }
                 tx_broadcast.send(Broadcast::Everyone(players_msg(&connections)))?;
             }
-            GameLoop::Message(user_id, req) => match req {
-                GameReq::Canvas { event } => {
-                    canvas_events.push(event);
-                    tx_broadcast.send(Broadcast::Exclude(user_id, Game::Canvas { event }))?;
-                }
-                GameReq::Join { .. } => {
-                    if let Some(conn) = connections.remove(&user_id) {
-                        let nickname = &conn.player.nickname;
-                        log::warn!("Lobby={} Player={} invalid msg: {:?}", lobby, nickname, req);
-                        tx_broadcast.send(Broadcast::Everyone(players_msg(&connections)))?;
+            GameLoop::Message(user_id, epoch, req) => match connections.get(&user_id) {
+                Some(conn) if conn.epoch == epoch => match req {
+                    GameReq::Canvas { event } => {
+                        canvas_events.push(event);
+                        tx_broadcast.send(Broadcast::Exclude(user_id, Game::Canvas { event }))?;
                     }
+                    GameReq::Join { .. } => {
+                        if let Some(conn) = connections.remove(&user_id) {
+                            let nick = &conn.player.nick;
+                            log::warn!("Lobby={} Player={} invalid: {:?}", lobby, nick, req);
+                            tx_broadcast.send(Broadcast::Everyone(players_msg(&connections)))?;
+                        }
+                    }
+                },
+                _ => {
+                    tx_broadcast.send(Broadcast::Kill(user_id, epoch))?;
                 }
             },
             GameLoop::Disconnect(user_id, epoch) => {
@@ -300,7 +295,7 @@ async fn game_loop(
                 if let Entry::Occupied(entry) = connections.entry(user_id) {
                     if entry.get().epoch == epoch {
                         let conn = entry.remove();
-                        log::warn!("Lobby={} Player={} removed", lobby, conn.player.nickname);
+                        log::warn!("Lobby={} Player={} removed", lobby, conn.player.nick);
                         tx_broadcast.send(Broadcast::Everyone(players_msg(&connections)))?;
                     }
                 }

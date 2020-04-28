@@ -41,7 +41,7 @@ pub enum PointerAction {
 pub struct Props {
     pub app_link: ComponentLink<app::App>,
     pub lobby: Lobby,
-    pub nickname: Nickname,
+    pub nick: Nickname,
 }
 
 pub struct InGame {
@@ -50,7 +50,7 @@ pub struct InGame {
     ws_service: WebSocketService,
     render_service: RenderService,
     lobby: Lobby,
-    nickname: Nickname,
+    nick: Nickname,
     active_ws: Option<WebSocketApiTask<Game>>,
     scheduled_render: Option<RenderTask>,
     canvas_ref: NodeRef,
@@ -78,7 +78,7 @@ impl Component for InGame {
             ws_service: WebSocketService::new(),
             render_service: RenderService::new(),
             lobby: props.lobby,
-            nickname: props.nickname,
+            nick: props.nick,
             active_ws: None,
             scheduled_render: None,
             canvas_ref: Default::default(),
@@ -128,7 +128,7 @@ impl Component for InGame {
                     if let Some(ws) = &mut self.active_ws {
                         ws.send_api(&GameReq::Join {
                             lobby: self.lobby.clone(),
-                            nickname: self.nickname.clone(),
+                            nick: self.nick.clone(),
                         });
                     }
                     false
@@ -257,10 +257,10 @@ impl Component for InGame {
         let Props {
             app_link,
             lobby,
-            nickname,
+            nick,
         } = props;
         self.app_link = app_link;
-        self.lobby.neq_assign(lobby) | self.nickname.neq_assign(nickname)
+        self.lobby.neq_assign(lobby) | self.nick.neq_assign(nick)
     }
 
     fn view(&self) -> Html {

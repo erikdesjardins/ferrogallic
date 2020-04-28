@@ -13,7 +13,7 @@ pub enum Game {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum GameReq {
-    Join { lobby: Lobby, nickname: Nickname },
+    Join { lobby: Lobby, nick: Nickname },
     Canvas { event: Canvas },
 }
 
@@ -24,7 +24,7 @@ impl WsEndpoint for Game {
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Player {
-    pub nickname: Nickname,
+    pub nick: Nickname,
     pub status: PlayerStatus,
     pub score: u32,
 }

@@ -18,8 +18,8 @@ pub struct UserId(u64);
 pub struct Nickname(String);
 
 impl Nickname {
-    pub fn new(nickname: String) -> Self {
-        Self(nickname)
+    pub fn new(nick: String) -> Self {
+        Self(nick)
     }
 
     pub fn user_id(&self) -> UserId {
@@ -55,8 +55,8 @@ impl fmt::Display for Nickname {
 pub struct Lobby(String);
 
 impl Lobby {
-    pub fn new(nickname: String) -> Self {
-        Self(nickname)
+    pub fn new(lobby: String) -> Self {
+        Self(lobby)
     }
 }
 

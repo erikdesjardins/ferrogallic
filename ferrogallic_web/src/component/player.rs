@@ -33,7 +33,7 @@ impl Component for Player {
         let player = &self.props.player;
         html! {
             <p>
-                {&player.nickname}{" ("}{player.score}{")"}
+                {&player.nick}{" ("}{player.score}{")"}
                 {match player.status {
                      game::PlayerStatus::Connected => html!{},
                      game::PlayerStatus::Disconnected => html! {
