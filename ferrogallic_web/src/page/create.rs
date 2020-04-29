@@ -49,20 +49,6 @@ impl Component for Create {
         }
     }
 
-    fn mounted(&mut self) -> ShouldRender {
-        let started_fetch = self
-            .fetch_service
-            .fetch_api(&self.link, &(), |res| match res {
-                Ok(RandomLobbyName { lobby }) => Msg::SetGeneratedLobbyName(lobby),
-                Err(e) => Msg::SetGlobalError(e),
-            });
-        match started_fetch {
-            Ok(task) => self.fetching_generated_lobby_name = Some(task),
-            Err(e) => self.app_link.send_message(app::Msg::SetError(e)),
-        }
-        false
-    }
-
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::SetCustomLobbyName(lobby) => {
@@ -91,6 +77,21 @@ impl Component for Create {
     fn change(&mut self, Props { app_link }: Self::Properties) -> ShouldRender {
         self.app_link = app_link;
         false
+    }
+
+    fn rendered(&mut self, first_render: bool) {
+        if first_render {
+            let started_fetch = self
+                .fetch_service
+                .fetch_api(&self.link, &(), |res| match res {
+                    Ok(RandomLobbyName { lobby }) => Msg::SetGeneratedLobbyName(lobby),
+                    Err(e) => Msg::SetGlobalError(e),
+                });
+            match started_fetch {
+                Ok(task) => self.fetching_generated_lobby_name = Some(task),
+                Err(e) => self.app_link.send_message(app::Msg::SetError(e)),
+            }
+        }
     }
 
     fn view(&self) -> Html {

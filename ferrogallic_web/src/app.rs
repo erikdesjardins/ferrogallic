@@ -32,6 +32,11 @@ impl Component for App {
         }
     }
 
+    fn change(&mut self, props: Self::Properties) -> bool {
+        let () = props;
+        false
+    }
+
     fn view(&self) -> Html {
         let app_link = self.link.clone();
         let render_app = Router::render(move |route| match route {

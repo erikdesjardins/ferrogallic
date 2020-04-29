@@ -90,36 +90,6 @@ impl Component for InGame {
         }
     }
 
-    fn mounted(&mut self) -> ShouldRender {
-        if let Some(canvas) = self.canvas_ref.cast::<HtmlCanvasElement>() {
-            if let Some(context) = canvas
-                .get_context("2d")
-                .ok()
-                .flatten()
-                .and_then(|c| c.dyn_into::<CanvasRenderingContext2d>().ok())
-            {
-                self.canvas = Some((VirtualCanvas::new(), context));
-            }
-        }
-
-        let started_ws = self.ws_service.connect_api(
-            &self.link,
-            |res| match res {
-                Ok(msg) => Msg::Message(msg),
-                Err(e) => Msg::SetGlobalError(e),
-            },
-            Msg::ConnStatus,
-        );
-        match started_ws {
-            Ok(task) => self.active_ws = Some(task),
-            Err(e) => self
-                .app_link
-                .send_message(app::Msg::SetError(e.context("Failed to connect"))),
-        }
-
-        false
-    }
-
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::Ignore => false,
@@ -261,6 +231,36 @@ impl Component for InGame {
         } = props;
         self.app_link = app_link;
         self.lobby.neq_assign(lobby) | self.nick.neq_assign(nick)
+    }
+
+    fn rendered(&mut self, first_render: bool) {
+        if first_render {
+            if let Some(canvas) = self.canvas_ref.cast::<HtmlCanvasElement>() {
+                if let Some(context) = canvas
+                    .get_context("2d")
+                    .ok()
+                    .flatten()
+                    .and_then(|c| c.dyn_into::<CanvasRenderingContext2d>().ok())
+                {
+                    self.canvas = Some((VirtualCanvas::new(), context));
+                }
+            }
+
+            let started_ws = self.ws_service.connect_api(
+                &self.link,
+                |res| match res {
+                    Ok(msg) => Msg::Message(msg),
+                    Err(e) => Msg::SetGlobalError(e),
+                },
+                Msg::ConnStatus,
+            );
+            match started_ws {
+                Ok(task) => self.active_ws = Some(task),
+                Err(e) => self
+                    .app_link
+                    .send_message(app::Msg::SetError(e.context("Failed to connect"))),
+            }
+        }
     }
 
     fn view(&self) -> Html {
