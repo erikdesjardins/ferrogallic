@@ -8,6 +8,7 @@ use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::game::{Canvas, Game, GameReq, Player};
 use ferrogallic_shared::config::{CANVAS_HEIGHT, CANVAS_WIDTH};
 use ferrogallic_shared::domain::{Color, Lobby, Nickname, Tool, UserId};
+use gloo::events::{EventListener, EventListenerOptions};
 use std::collections::BTreeMap;
 use wasm_bindgen::JsCast;
 use web_sys::{CanvasRenderingContext2d, Element, HtmlCanvasElement};
@@ -54,11 +55,17 @@ pub struct InGame {
     active_ws: Option<WebSocketApiTask<Game>>,
     scheduled_render: Option<RenderTask>,
     canvas_ref: NodeRef,
-    canvas: Option<(VirtualCanvas, CanvasRenderingContext2d)>,
+    canvas: Option<CanvasState>,
     pointer: PointerState,
     tool: Tool,
     color: Color,
     players: BTreeMap<UserId, Player>,
+}
+
+struct CanvasState {
+    vr: VirtualCanvas,
+    context: CanvasRenderingContext2d,
+    _disable_touchstart: EventListener,
 }
 
 #[derive(Copy, Clone)]
@@ -242,7 +249,17 @@ impl Component for InGame {
                     .flatten()
                     .and_then(|c| c.dyn_into::<CanvasRenderingContext2d>().ok())
                 {
-                    self.canvas = Some((VirtualCanvas::new(), context));
+                    let listener = EventListener::new_with_options(
+                        &canvas.into(),
+                        "touchstart",
+                        EventListenerOptions::enable_prevent_default(),
+                        |e| e.prevent_default(),
+                    );
+                    self.canvas = Some(CanvasState {
+                        vr: VirtualCanvas::new(),
+                        context,
+                        _disable_touchstart: listener,
+                    });
                 }
             }
 
@@ -365,8 +382,8 @@ impl InGame {
     }
 
     fn render_to_virtual(&mut self, event: Canvas) {
-        if let Some((canvas, _)) = &mut self.canvas {
-            canvas.handle_event(event);
+        if let Some(canvas) = &mut self.canvas {
+            canvas.vr.handle_event(event);
         }
     }
 
@@ -381,8 +398,8 @@ impl InGame {
 
     fn render_to_canvas(&mut self) {
         self.scheduled_render = None;
-        if let Some((canvas, context)) = &mut self.canvas {
-            if let Err(e) = canvas.render_to(context) {
+        if let Some(canvas) = &mut self.canvas {
+            if let Err(e) = canvas.vr.render_to(&canvas.context) {
                 log::warn!("Failed to render to canvas: {:?}", e);
             }
         }
