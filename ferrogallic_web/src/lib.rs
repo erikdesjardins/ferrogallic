@@ -1,4 +1,5 @@
 #![recursion_limit = "1024"]
+#![allow(clippy::let_unit_value)]
 
 use wasm_bindgen::prelude::wasm_bindgen;
 
