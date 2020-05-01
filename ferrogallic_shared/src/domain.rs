@@ -15,11 +15,11 @@ use std::str::FromStr;
 pub struct UserId(u64);
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialOrd, Ord, PartialEq, Eq)]
-pub struct Nickname(String);
+pub struct Nickname(Box<str>);
 
 impl Nickname {
-    pub fn new(nick: String) -> Self {
-        Self(nick)
+    pub fn new(nick: impl Into<Box<str>>) -> Self {
+        Self(nick.into())
     }
 
     pub fn user_id(&self) -> UserId {
@@ -41,7 +41,7 @@ impl FromStr for Nickname {
     type Err = Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(String::from(s)))
+        Ok(Self(s.into()))
     }
 }
 
@@ -52,11 +52,11 @@ impl fmt::Display for Nickname {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
-pub struct Lobby(String);
+pub struct Lobby(Box<str>);
 
 impl Lobby {
-    pub fn new(lobby: String) -> Self {
-        Self(lobby)
+    pub fn new(lobby: impl Into<Box<str>>) -> Self {
+        Self(lobby.into())
     }
 }
 
@@ -72,7 +72,7 @@ impl FromStr for Lobby {
     type Err = Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(String::from(s)))
+        Ok(Self(s.into()))
     }
 }
 

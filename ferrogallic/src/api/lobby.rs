@@ -10,7 +10,7 @@ pub fn random_name(_state: (), _req: ()) -> Result<RandomLobbyName, Infallible> 
     let lobby = words::COMMON_FOR_ROOM_NAMES
         .choose_multiple(&mut rng, 3)
         .map(|word| word[0..1].to_uppercase() + &word[1..])
-        .collect();
+        .collect::<String>();
     Ok(RandomLobbyName {
         lobby: Lobby::new(lobby),
     })
