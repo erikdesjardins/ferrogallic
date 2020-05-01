@@ -165,6 +165,11 @@ enum Broadcast {
     Kill(UserId, Epoch),
 }
 
+#[test]
+fn broadcast_size() {
+    assert_eq!(std::mem::size_of::<Broadcast>(), 48);
+}
+
 async fn run_game_loop(
     lobby: Lobby,
     tx_self: mpsc::Sender<GameLoop>,

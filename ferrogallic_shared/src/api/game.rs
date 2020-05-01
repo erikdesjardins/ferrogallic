@@ -11,10 +11,20 @@ pub enum Game {
     CanvasBulk { events: Vec<Canvas> },
 }
 
+#[test]
+fn game_size() {
+    assert_eq!(std::mem::size_of::<Game>(), 32);
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub enum GameReq {
     Join { lobby: Lobby, nick: Nickname },
     Canvas { event: Canvas },
+}
+
+#[test]
+fn gamereq_size() {
+    assert_eq!(std::mem::size_of::<GameReq>(), 40);
 }
 
 impl WsEndpoint for Game {
