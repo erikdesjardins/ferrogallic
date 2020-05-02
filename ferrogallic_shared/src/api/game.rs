@@ -2,21 +2,34 @@ use crate::api::WsEndpoint;
 use crate::domain::{Color, Guess, LineWidth, Lobby, Nickname, UserId};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum Game {
     Heartbeat,
-    Players { players: BTreeMap<UserId, Player> },
-    Game { state: GameState },
-    Canvas { event: Canvas },
-    CanvasBulk { events: Vec<Canvas> },
-    Guess { guess: Guess },
-    GuessBulk { guesses: Vec<Guess> },
+    Players {
+        players: Arc<BTreeMap<UserId, Player>>,
+    },
+    Game {
+        state: Arc<GameState>,
+    },
+    Canvas {
+        event: Canvas,
+    },
+    CanvasBulk {
+        events: Vec<Canvas>,
+    },
+    Guess {
+        guess: Guess,
+    },
+    GuessBulk {
+        guesses: Vec<Guess>,
+    },
 }
 
 #[test]
 fn game_size() {
-    assert_eq!(std::mem::size_of::<Game>(), 40);
+    assert_eq!(std::mem::size_of::<Game>(), 32);
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -61,7 +74,7 @@ impl Default for GameState {
 
 #[test]
 fn gamestate_size() {
-    assert_eq!(std::mem::size_of::<GameState>(), 32);
+    assert_eq!(std::mem::size_of::<GameState>(), 56);
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]

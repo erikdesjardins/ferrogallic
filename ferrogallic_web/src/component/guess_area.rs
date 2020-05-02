@@ -2,15 +2,15 @@ use crate::util::NeqAssign;
 use ferrogallic_shared::api::game::Player;
 use ferrogallic_shared::domain::{Guess, UserId};
 use std::collections::BTreeMap;
-use std::rc::Rc;
+use std::sync::Arc;
 use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
 
 pub enum Msg {}
 
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
-    pub players: Rc<BTreeMap<UserId, Player>>,
-    pub guesses: Rc<Vec<Guess>>,
+    pub players: Arc<BTreeMap<UserId, Player>>,
+    pub guesses: Arc<Vec<Guess>>,
 }
 
 pub struct GuessArea {

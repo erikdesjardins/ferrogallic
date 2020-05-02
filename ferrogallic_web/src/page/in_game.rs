@@ -10,7 +10,7 @@ use ferrogallic_shared::config::{CANVAS_HEIGHT, CANVAS_WIDTH};
 use ferrogallic_shared::domain::{Color, Guess, Lobby, Nickname, Tool, UserId};
 use gloo::events::{EventListener, EventListenerOptions};
 use std::collections::BTreeMap;
-use std::rc::Rc;
+use std::sync::Arc;
 use wasm_bindgen::JsCast;
 use web_sys::{CanvasRenderingContext2d, Element, HtmlCanvasElement};
 use yew::services::render::{RenderService, RenderTask};
@@ -62,9 +62,9 @@ pub struct InGame {
     pointer: PointerState,
     tool: Tool,
     color: Color,
-    players: Rc<BTreeMap<UserId, Player>>,
-    game: GameState,
-    guesses: Rc<Vec<Guess>>,
+    players: Arc<BTreeMap<UserId, Player>>,
+    game: Arc<GameState>,
+    guesses: Arc<Vec<Guess>>,
 }
 
 struct CanvasState {
@@ -133,7 +133,7 @@ impl Component for InGame {
             Msg::Message(msg) => match msg {
                 Game::Heartbeat => false,
                 Game::Players { players } => {
-                    self.players = Rc::new(players);
+                    self.players = players;
                     true
                 }
                 Game::Game { state } => {
@@ -153,11 +153,11 @@ impl Component for InGame {
                     false
                 }
                 Game::Guess { guess } => {
-                    Rc::make_mut(&mut self.guesses).push(guess);
+                    Arc::make_mut(&mut self.guesses).push(guess);
                     true
                 }
                 Game::GuessBulk { mut guesses } => {
-                    Rc::make_mut(&mut self.guesses).append(&mut guesses);
+                    Arc::make_mut(&mut self.guesses).append(&mut guesses);
                     true
                 }
             },
@@ -330,7 +330,7 @@ impl Component for InGame {
         let mut can_draw = false;
         let mut choose_word = html! {};
         let mut guess_template = None;
-        let _: () = match &self.game {
+        let _: () = match self.game.as_ref() {
             GameState::WaitingToStart { .. } => {
                 can_draw = true;
             }

@@ -256,7 +256,7 @@ async fn game_loop(
                     rx_broadcast: tx_broadcast.subscribe(),
                     messages: vec![
                         Game::Game {
-                            state: game_state.read().clone(),
+                            state: Arc::new(game_state.read().clone()),
                         },
                         Game::GuessBulk {
                             guesses: guesses.clone(),
@@ -443,15 +443,17 @@ async fn game_loop(
 
         if let Some(connections) = connections.reset_if_changed() {
             tx_broadcast.send(Broadcast::Everyone(Game::Players {
-                players: connections
-                    .iter()
-                    .map(|(user_id, conn)| (*user_id, conn.player.clone()))
-                    .collect(),
+                players: Arc::new(
+                    connections
+                        .iter()
+                        .map(|(user_id, conn)| (*user_id, conn.player.clone()))
+                        .collect(),
+                ),
             }))?;
         }
         if let Some(game_state) = game_state.reset_if_changed() {
             tx_broadcast.send(Broadcast::Everyone(Game::Game {
-                state: game_state.clone(),
+                state: Arc::new(game_state.clone()),
             }))?;
         }
     }
