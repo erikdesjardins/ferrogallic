@@ -12,3 +12,6 @@ pub const REMOVE_DISCONNECTED_PLAYERS: Duration = Duration::from_secs(60);
 
 pub const CANVAS_WIDTH: usize = 800;
 pub const CANVAS_HEIGHT: usize = 600;
+
+pub const NUMBER_OF_WORDS_TO_CHOOSE: usize = 3;
+pub const GUESS_SECONDS: u8 = 120;

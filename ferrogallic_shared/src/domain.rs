@@ -82,6 +82,14 @@ impl fmt::Display for Lobby {
     }
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, PartialOrd, Ord, PartialEq, Eq)]
+pub enum Guess {
+    System(Box<str>),
+    Message(Box<str>),
+    Guess(Box<str>),
+    Correct(UserId),
+}
+
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub enum LineWidth {
     Small,

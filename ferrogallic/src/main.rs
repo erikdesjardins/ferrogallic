@@ -1,4 +1,4 @@
-#![allow(clippy::redundant_pattern_matching)]
+#![allow(clippy::redundant_pattern_matching, clippy::single_match)]
 
 use std::env;
 use structopt::StructOpt;

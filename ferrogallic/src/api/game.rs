@@ -1,11 +1,16 @@
 use crate::api::TypedWebSocket;
+use crate::words;
 use anyhow::{anyhow, Error};
-use ferrogallic_shared::api::game::{Game, GameReq, Player, PlayerStatus};
+use ferrogallic_shared::api::game::{Canvas, Game, GameReq, GameState, Player, PlayerStatus};
 use ferrogallic_shared::config::{
-    REMOVE_DISCONNECTED_PLAYERS, WS_HEARTBEAT_INTERVAL, WS_RX_BUFFER_SHARED, WS_TX_BUFFER_BROADCAST,
+    NUMBER_OF_WORDS_TO_CHOOSE, REMOVE_DISCONNECTED_PLAYERS, WS_HEARTBEAT_INTERVAL,
+    WS_RX_BUFFER_SHARED, WS_TX_BUFFER_BROADCAST,
 };
-use ferrogallic_shared::domain::{Lobby, Nickname, UserId};
+use ferrogallic_shared::domain::{Guess, Lobby, Nickname, UserId};
 use futures::{SinkExt, StreamExt};
+use rand::seq::SliceRandom;
+use rand::thread_rng;
+use std::cell::Cell;
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
@@ -98,7 +103,7 @@ pub async fn join_game(
                         Broadcast::Everyone(resp) => ws.send(&resp).await?,
                         Broadcast::Exclude(uid, resp) if uid != user_id => ws.send(&resp).await?,
                         Broadcast::Kill(uid, ep) if uid == user_id && ep == epoch => {
-                            log::info!("Player={} Lobby={} Epoch={} killed due to reconn", nick, lobby, epoch);
+                            log::info!("Player={} Lobby={} Epoch={} killed", nick, lobby, epoch);
                             return Ok(());
                         }
                         Broadcast::Exclude(_, _) | Broadcast::Kill(_, _) => {
@@ -178,13 +183,22 @@ async fn run_game_loop(
     match game_loop(&lobby, tx_self, rx).await {
         Ok(()) => log::info!("Lobby={} shutdown, no new connections", lobby),
         Err(e) => match e {
-            GameLoopError::NoPlayers => log::info!("Lobby={} shutdown, no players left", lobby),
+            GameLoopError::NoPlayers => {
+                log::info!("Lobby={} shutdown, no players left", lobby);
+            }
+            GameLoopError::NoConnectionsDuringStateChange => {
+                log::info!(
+                    "Lobby={} shutdown, no connections during state change",
+                    lobby
+                );
+            }
         },
     }
 }
 
 enum GameLoopError {
     NoPlayers,
+    NoConnectionsDuringStateChange,
 }
 
 impl From<broadcast::SendError<Broadcast>> for GameLoopError {
@@ -199,6 +213,10 @@ struct Connection {
     player: Player,
 }
 
+enum Transition {
+    ChoosingWords { previously_drawing: Option<UserId> },
+}
+
 async fn game_loop(
     lobby: &Lobby,
     tx_self: mpsc::Sender<GameLoop>,
@@ -208,8 +226,10 @@ async fn game_loop(
 
     let (tx_broadcast, _) = broadcast::channel(WS_TX_BUFFER_BROADCAST);
 
-    let mut connections = BTreeMap::new();
+    let mut connections = Invalidate::new(BTreeMap::new());
+    let mut game_state = Invalidate::new(GameState::default());
     let mut canvas_events = Vec::new();
+    let mut guesses = Vec::new();
 
     spawn({
         let lobby = lobby.clone();
@@ -234,15 +254,23 @@ async fn game_loop(
             GameLoop::Connect(user_id, epoch, nick, tx_onboard) => {
                 let onboarding = Onboarding {
                     rx_broadcast: tx_broadcast.subscribe(),
-                    messages: vec![Game::CanvasBulk {
-                        events: canvas_events.clone(),
-                    }],
+                    messages: vec![
+                        Game::Game {
+                            state: game_state.read().clone(),
+                        },
+                        Game::GuessBulk {
+                            guesses: guesses.clone(),
+                        },
+                        Game::CanvasBulk {
+                            events: canvas_events.clone(),
+                        },
+                    ],
                 };
                 if let Err(_) = tx_onboard.send(onboarding) {
                     log::warn!("Lobby={} Player={} Epoch={} no onboard", lobby, nick, epoch);
                     continue;
                 }
-                match connections.entry(user_id) {
+                match connections.write().entry(user_id) {
                     Entry::Vacant(entry) => {
                         log::info!("Lobby={} Player={} Epoch={} join", lobby, nick, epoch);
                         entry.insert(Connection {
@@ -261,20 +289,70 @@ async fn game_loop(
                         conn.player.status = PlayerStatus::Connected;
                     }
                 }
-                tx_broadcast.send(Broadcast::Everyone(players_msg(&connections)))?;
             }
-            GameLoop::Message(user_id, epoch, req) => match connections.get(&user_id) {
+            GameLoop::Message(user_id, epoch, req) => match connections.read().get(&user_id) {
                 Some(conn) if conn.epoch == epoch => match req {
                     GameReq::Canvas { event } => {
                         canvas_events.push(event);
                         tx_broadcast.send(Broadcast::Exclude(user_id, Game::Canvas { event }))?;
                     }
-                    GameReq::Join { .. } => {
-                        if let Some(conn) = connections.remove(&user_id) {
-                            let nick = &conn.player.nick;
-                            log::warn!("Lobby={} Player={} invalid: {:?}", lobby, nick, req);
-                            tx_broadcast.send(Broadcast::Everyone(players_msg(&connections)))?;
+                    GameReq::Choose { word } => match game_state.read() {
+                        GameState::ChoosingWords { choosing, words }
+                            if *choosing == user_id && words.contains(&word) =>
+                        {
+                            *game_state.write() = GameState::Drawing {
+                                drawing: *choosing,
+                                correct: Default::default(),
+                                word,
+                            };
+                            tx_broadcast.send(Broadcast::Everyone(Game::Canvas {
+                                event: Canvas::Clear,
+                            }))?;
                         }
+                        gs => {
+                            let nick = &conn.player.nick;
+                            log::warn!("Lobby={} Player={} invalid choose: {:?}", lobby, nick, gs);
+                            tx_broadcast.send(Broadcast::Kill(user_id, epoch))?;
+                        }
+                    },
+                    GameReq::Guess { guess } => {
+                        let guess = match game_state.read() {
+                            GameState::WaitingToStart { .. } => match guess.as_ref() {
+                                "start" => {
+                                    if let GameState::WaitingToStart { starting } =
+                                        game_state.write()
+                                    {
+                                        *starting = true;
+                                    }
+                                    Guess::System("Starting game...".into())
+                                }
+                                _ => Guess::Message(guess),
+                            },
+                            GameState::ChoosingWords { .. } => Guess::Message(guess),
+                            GameState::Drawing {
+                                drawing,
+                                correct,
+                                word,
+                            } => {
+                                if *drawing == user_id || correct.contains(&user_id) {
+                                    Guess::Message(guess)
+                                } else if &guess == word {
+                                    if let GameState::Drawing { correct, .. } = game_state.write() {
+                                        correct.push(user_id);
+                                    }
+                                    Guess::Correct(user_id)
+                                } else {
+                                    Guess::Guess(guess)
+                                }
+                            }
+                        };
+                        guesses.push(guess.clone());
+                        tx_broadcast.send(Broadcast::Everyone(Game::Guess { guess }))?;
+                    }
+                    GameReq::Join { .. } => {
+                        let nick = &conn.player.nick;
+                        log::warn!("Lobby={} Player={} invalid: {:?}", lobby, nick, req);
+                        tx_broadcast.send(Broadcast::Kill(user_id, epoch))?;
                     }
                 },
                 _ => {
@@ -282,10 +360,9 @@ async fn game_loop(
                 }
             },
             GameLoop::Disconnect(user_id, epoch) => {
-                if let Some(conn) = connections.get_mut(&user_id) {
+                if let Some(conn) = connections.write().get_mut(&user_id) {
                     if conn.epoch == epoch {
                         conn.player.status = PlayerStatus::Disconnected;
-                        tx_broadcast.send(Broadcast::Everyone(players_msg(&connections)))?;
                         spawn({
                             let mut tx_self = tx_self.clone();
                             async move {
@@ -297,11 +374,10 @@ async fn game_loop(
                 }
             }
             GameLoop::Remove(user_id, epoch) => {
-                if let Entry::Occupied(entry) = connections.entry(user_id) {
+                if let Entry::Occupied(entry) = connections.write().entry(user_id) {
                     if entry.get().epoch == epoch {
                         let conn = entry.remove();
                         log::warn!("Lobby={} Player={} removed", lobby, conn.player.nick);
-                        tx_broadcast.send(Broadcast::Everyone(players_msg(&connections)))?;
                     }
                 }
             }
@@ -309,14 +385,109 @@ async fn game_loop(
                 tx_broadcast.send(Broadcast::Everyone(Game::Heartbeat))?;
             }
         }
+
+        let transition = if game_state.is_changed() {
+            match game_state.read() {
+                GameState::WaitingToStart { starting: true } => Some(Transition::ChoosingWords {
+                    previously_drawing: None,
+                }),
+                GameState::WaitingToStart { starting: false } => None,
+                GameState::ChoosingWords {
+                    choosing: _,
+                    words: _,
+                } => None,
+                GameState::Drawing {
+                    drawing,
+                    correct,
+                    word: _,
+                } => {
+                    if connections
+                        .read()
+                        .keys()
+                        .all(|uid| drawing == uid || correct.contains(uid))
+                    {
+                        Some(Transition::ChoosingWords {
+                            previously_drawing: Some(*drawing),
+                        })
+                    } else {
+                        None
+                    }
+                }
+            }
+        } else {
+            None
+        };
+
+        match transition {
+            Some(Transition::ChoosingWords { previously_drawing }) => {
+                let choosing = connections
+                    .read()
+                    .keys()
+                    // first player after the previous drawer...
+                    .skip_while(|uid| Some(**uid) != previously_drawing)
+                    .nth(1)
+                    // ...or the first player in the list
+                    .or_else(|| connections.read().keys().next());
+                let choosing = match choosing {
+                    Some(choosing) => *choosing,
+                    None => return Err(GameLoopError::NoConnectionsDuringStateChange),
+                };
+                let words = words::GAME
+                    .choose_multiple(&mut thread_rng(), NUMBER_OF_WORDS_TO_CHOOSE)
+                    .map(|&s| s.into())
+                    .collect();
+                *game_state.write() = GameState::ChoosingWords { choosing, words };
+            }
+            None => {}
+        }
+
+        if let Some(connections) = connections.reset_if_changed() {
+            tx_broadcast.send(Broadcast::Everyone(Game::Players {
+                players: connections
+                    .iter()
+                    .map(|(user_id, conn)| (*user_id, conn.player.clone()))
+                    .collect(),
+            }))?;
+        }
+        if let Some(game_state) = game_state.reset_if_changed() {
+            tx_broadcast.send(Broadcast::Everyone(Game::Game {
+                state: game_state.clone(),
+            }))?;
+        }
     }
 }
 
-fn players_msg(connections: &BTreeMap<UserId, Connection>) -> Game {
-    Game::Players {
-        players: connections
-            .iter()
-            .map(|(user_id, conn)| (*user_id, conn.player.clone()))
-            .collect(),
+struct Invalidate<T> {
+    value: T,
+    changed: Cell<bool>,
+}
+
+impl<T> Invalidate<T> {
+    fn new(value: T) -> Self {
+        Self {
+            value,
+            changed: Cell::new(true),
+        }
+    }
+
+    fn read(&self) -> &T {
+        &self.value
+    }
+
+    fn write(&mut self) -> &mut T {
+        self.changed.set(true);
+        &mut self.value
+    }
+
+    fn is_changed(&self) -> bool {
+        self.changed.get()
+    }
+
+    fn reset_if_changed(&self) -> Option<&T> {
+        if self.changed.replace(false) {
+            Some(&self.value)
+        } else {
+            None
+        }
     }
 }

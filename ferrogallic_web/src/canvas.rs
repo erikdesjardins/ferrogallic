@@ -50,6 +50,9 @@ impl VirtualCanvas {
                     None => CanvasBuffer::boxed(),
                 };
             }
+            Canvas::Clear => {
+                *self = Self::new();
+            }
         }
     }
 

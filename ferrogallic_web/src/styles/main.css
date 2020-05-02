@@ -37,3 +37,21 @@ main {
 button.selected {
     border: solid 4px red;
 }
+
+.guess-template-container {
+    text-align: center;
+    font-family: monospace;
+    white-space: pre;
+}
+
+.guess-char {
+    padding: 0 0.25em;
+}
+
+.guess-char.underlined {
+    text-decoration: underline;
+}
+
+.guess-char.invalid {
+    color: red;
+}

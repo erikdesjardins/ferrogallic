@@ -5,11 +5,12 @@ use crate::component;
 use crate::route::AppRoute;
 use crate::util::NeqAssign;
 use anyhow::{anyhow, Error};
-use ferrogallic_shared::api::game::{Canvas, Game, GameReq, Player};
+use ferrogallic_shared::api::game::{Canvas, Game, GameReq, GameState, Player};
 use ferrogallic_shared::config::{CANVAS_HEIGHT, CANVAS_WIDTH};
-use ferrogallic_shared::domain::{Color, Lobby, Nickname, Tool, UserId};
+use ferrogallic_shared::domain::{Color, Guess, Lobby, Nickname, Tool, UserId};
 use gloo::events::{EventListener, EventListenerOptions};
 use std::collections::BTreeMap;
+use std::rc::Rc;
 use wasm_bindgen::JsCast;
 use web_sys::{CanvasRenderingContext2d, Element, HtmlCanvasElement};
 use yew::services::render::{RenderService, RenderTask};
@@ -22,8 +23,10 @@ use yew_router::route::Route;
 
 pub enum Msg {
     Ignore,
-    Message(Game),
     ConnStatus(WebSocketStatus),
+    Message(Game),
+    ChooseWord(Box<str>),
+    SendGuess(String),
     Pointer(PointerAction),
     Undo,
     Render,
@@ -59,7 +62,9 @@ pub struct InGame {
     pointer: PointerState,
     tool: Tool,
     color: Color,
-    players: BTreeMap<UserId, Player>,
+    players: Rc<BTreeMap<UserId, Player>>,
+    game: GameState,
+    guesses: Rc<Vec<Guess>>,
 }
 
 struct CanvasState {
@@ -94,6 +99,8 @@ impl Component for InGame {
             tool: Default::default(),
             color: Default::default(),
             players: Default::default(),
+            game: Default::default(),
+            guesses: Default::default(),
         }
     }
 
@@ -126,7 +133,11 @@ impl Component for InGame {
             Msg::Message(msg) => match msg {
                 Game::Heartbeat => false,
                 Game::Players { players } => {
-                    self.players = players;
+                    self.players = Rc::new(players);
+                    true
+                }
+                Game::Game { state } => {
+                    self.game = state;
                     true
                 }
                 Game::Canvas { event } => {
@@ -141,7 +152,29 @@ impl Component for InGame {
                     self.schedule_render_to_canvas();
                     false
                 }
+                Game::Guess { guess } => {
+                    Rc::make_mut(&mut self.guesses).push(guess);
+                    true
+                }
+                Game::GuessBulk { mut guesses } => {
+                    Rc::make_mut(&mut self.guesses).append(&mut guesses);
+                    true
+                }
             },
+            Msg::ChooseWord(word) => {
+                if let Some(ws) = &mut self.active_ws {
+                    ws.send_api(&GameReq::Choose { word });
+                }
+                false
+            }
+            Msg::SendGuess(guess) => {
+                if let Some(ws) = &mut self.active_ws {
+                    ws.send_api(&GameReq::Guess {
+                        guess: guess.into_boxed_str(),
+                    });
+                }
+                false
+            }
             Msg::Pointer(action) => {
                 let one_event;
                 let two_events;
@@ -294,6 +327,34 @@ impl Component for InGame {
         let on_pointer_move = self.handle_pointer_event(PointerAction::Move);
         let on_pointer_up = self.handle_pointer_event(PointerAction::Up);
 
+        let mut can_draw = false;
+        let mut choose_word = html! {};
+        let mut guess_template = None;
+        let _: () = match &self.game {
+            GameState::WaitingToStart { .. } => {
+                can_draw = true;
+            }
+            GameState::ChoosingWords { choosing, words } => {
+                if *choosing == self.nick.user_id() {
+                    choose_word = html! {
+                        <component::ChooseToolbar game_link=self.link.clone(), words=words.clone() />
+                    };
+                }
+            }
+            GameState::Drawing {
+                drawing,
+                correct: _,
+                word,
+            } => {
+                if *drawing == self.nick.user_id() {
+                    can_draw = true;
+                    guess_template = Some(component::guess_input::Template::reveal_all(&word));
+                } else {
+                    guess_template = Some(component::guess_input::Template::reveal_spaces(&word));
+                }
+            }
+        };
+
         html! {
             <fieldset>
                 <legend><a href=lobby_url.as_str() onclick=no_leftclick>{&lobby_url}</a></legend>
@@ -312,6 +373,7 @@ impl Component for InGame {
                         <legend>{"Canvas"}</legend>
                         <canvas
                             ref=self.canvas_ref.clone()
+                            style=if can_draw { "" } else { "pointer-events: none" }
                             onpointerdown=on_pointer_down
                             onpointermove=on_pointer_move
                             onpointerup=&on_pointer_up
@@ -323,24 +385,14 @@ impl Component for InGame {
                             <component::ColorToolbar game_link=self.link.clone() color=self.color/>
                             <component::ToolToolbar game_link=self.link.clone() tool=self.tool/>
                             <component::UndoToolbar game_link=self.link.clone()/>
+                            {choose_word}
                         </section>
                     </fieldset>
                     <fieldset>
                         <legend>{"Guesses"}</legend>
                         <section class="guess-container">
-                            <div class="guesses">
-
-                            </div>
-                            <form>
-                                <input
-                                    type="text"
-                                    value=""
-                                />
-                                <input
-                                    type="submit"
-                                    value="Guess"
-                                />
-                            </form>
+                            <component::GuessArea players=self.players.clone() guesses=self.guesses.clone()/>
+                            <component::GuessInput game_link=self.link.clone(), guess_template=guess_template/>
                         </section>
                     </fieldset>
                 </article>

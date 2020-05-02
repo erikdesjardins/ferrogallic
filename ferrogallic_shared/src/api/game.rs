@@ -1,5 +1,5 @@
 use crate::api::WsEndpoint;
-use crate::domain::{Color, LineWidth, Lobby, Nickname, UserId};
+use crate::domain::{Color, Guess, LineWidth, Lobby, Nickname, UserId};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -7,19 +7,24 @@ use std::collections::BTreeMap;
 pub enum Game {
     Heartbeat,
     Players { players: BTreeMap<UserId, Player> },
+    Game { state: GameState },
     Canvas { event: Canvas },
     CanvasBulk { events: Vec<Canvas> },
+    Guess { guess: Guess },
+    GuessBulk { guesses: Vec<Guess> },
 }
 
 #[test]
 fn game_size() {
-    assert_eq!(std::mem::size_of::<Game>(), 32);
+    assert_eq!(std::mem::size_of::<Game>(), 40);
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum GameReq {
     Join { lobby: Lobby, nick: Nickname },
+    Choose { word: Box<str> },
     Canvas { event: Canvas },
+    Guess { guess: Box<str> },
 }
 
 #[test]
@@ -30,6 +35,33 @@ fn gamereq_size() {
 impl WsEndpoint for Game {
     const PATH: &'static str = "game";
     type Req = GameReq;
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub enum GameState {
+    WaitingToStart {
+        starting: bool,
+    },
+    ChoosingWords {
+        choosing: UserId,
+        words: Box<[Box<str>]>,
+    },
+    Drawing {
+        drawing: UserId,
+        correct: Vec<UserId>,
+        word: Box<str>,
+    },
+}
+
+impl Default for GameState {
+    fn default() -> Self {
+        Self::WaitingToStart { starting: false }
+    }
+}
+
+#[test]
+fn gamestate_size() {
+    assert_eq!(std::mem::size_of::<GameState>(), 32);
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
@@ -59,4 +91,5 @@ pub enum Canvas {
     },
     PushUndo,
     PopUndo,
+    Clear,
 }

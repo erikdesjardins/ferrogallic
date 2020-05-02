@@ -365,7 +365,6 @@ pub const GAME: &[&str] = &[
     "mascot",
     "mast",
     "matchstick",
-    "mate",
     "mattress",
     "mess",
     "mexico",
