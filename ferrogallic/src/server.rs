@@ -32,7 +32,10 @@ pub async fn run(addr: SocketAddr) {
             concat!(
                 "<!doctype html>",
                 "<html>",
-                "<head><link rel=stylesheet href='/static/main.css'/></head>",
+                "<head>",
+                "<meta name=robots content='noindex, nofollow'/>",
+                "<link rel=stylesheet href='/static/main.css'/>",
+                "</head>",
                 "<body><script type=module src='/static/index.js'></script></body>",
                 "</html>",
             ),
