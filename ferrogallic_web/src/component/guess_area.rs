@@ -60,9 +60,7 @@ impl Component for GuessArea {
             })
             .collect::<Html>();
         html! {
-            <div class="guesses">
-                {guesses}
-            </div>
+            <div class="guesses">{guesses}</div>
         }
     }
 }

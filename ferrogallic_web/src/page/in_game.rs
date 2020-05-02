@@ -362,11 +362,7 @@ impl Component for InGame {
                     <fieldset>
                         <legend>{"Players"}</legend>
                         <section class="player-container">
-                            <div class="players">
-                                {self.players.values().map(|player| html! {
-                                    <component::Player player=player/>
-                                }).collect::<Html>()}
-                            </div>
+                            <component::Players players=self.players.clone()/>
                         </section>
                     </fieldset>
                     <fieldset>

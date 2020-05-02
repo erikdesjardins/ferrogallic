@@ -44,6 +44,6 @@ impl Component for ChooseToolbar {
                     <button onclick=onclick>{word}</button>
                 }
             })
-            .collect::<Html>()
+            .collect()
     }
 }
