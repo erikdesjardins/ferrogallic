@@ -1,7 +1,8 @@
 [package]
-name = "ferrogallic_api"
+name = "ferrogallic_shared"
 version = "0.0.0"
 authors = ["Erik Desjardins <erikdesjardins@users.noreply.github.com>"]
 edition = "2018"
 
 [dependencies]
+serde = { version = "1.0", features = ["derive", "rc"] }

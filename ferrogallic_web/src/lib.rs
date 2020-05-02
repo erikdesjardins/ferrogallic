@@ -1,17 +1,22 @@
+#![recursion_limit = "1024"]
+#![allow(clippy::let_unit_value, clippy::match_bool)]
+
 use wasm_bindgen::prelude::wasm_bindgen;
 
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
-#[wasm_bindgen]
-extern "C" {
-    fn alert(s: &str);
-}
+mod api;
+mod app;
+mod canvas;
+mod component;
+mod page;
+mod route;
+mod util;
 
 #[wasm_bindgen(start)]
-pub fn main() {
+pub fn start() {
     #[cfg(debug_assertions)]
     console_error_panic_hook::set_once();
+    #[cfg(debug_assertions)]
+    console_log::init_with_level(log::Level::Trace).expect("initializing logger");
 
-    alert("testing testing 1 2 3");
+    yew::start_app::<app::App>()
 }

@@ -11,7 +11,24 @@ edition = "2018"
 crate-type = ["cdylib"]
 
 [dependencies]
-ferrogallic_api = { path = "../ferrogallic_api" }
+anyhow = "1.0"
+ferrogallic_shared = { path = "../ferrogallic_shared" }
 console_error_panic_hook = "0.1"
-wasm-bindgen = "0.2"
-wee_alloc = "0.4.2"
+console_log = "0.2"
+gloo = "0.2"
+itertools = "0.9"
+log = { version = "0.4", features = ["release_max_level_off"] }
+thiserror = "1.0"
+wasm-bindgen = { version = "0.2", features = ["strict-macro"] }
+web-sys = { version = "0.3", features = ["Window", "Location", "HtmlCanvasElement", "CanvasRenderingContext2d", "Element", "DomRect", "ImageData", "TouchList", "Touch"] }
+yew = "0.15"
+yew-router = "0.12.1"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[profile.release]
+panic = "abort"
+lto = true
+codegen-units = 1
+opt-level = "s"

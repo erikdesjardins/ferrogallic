@@ -7,22 +7,20 @@ repository = "https://github.com/erikdesjardins/ferrogallic"
 license = "MIT"
 edition = "2018"
 
-[workspace]
-members = [".", "ferrogallic_api", "ferrogallic_web"]
-
 [dependencies]
-ferrogallic_api = { path = "./ferrogallic_api" }
+anyhow = "1.0"
+bincode = "1.2"
+bytes = "0.5"
+ferrogallic_shared = { path = "../ferrogallic_shared" }
+futures = "0.3"
 env_logger = { version = "0.7", default-features = false, features = ["humantime"] }
 log = "0.4"
+rand = "0.7"
 structopt = { version = "0.3", default-features = false }
-tokio = { version = "0.2" , features = ["macros", "rt-threaded"] }
-warp = { version = "0.2", default-features = false }
+tokio = { version = "0.2" , features = ["macros", "rt-threaded", "sync", "time", "parking_lot"] }
+warp = { version = "0.2", default-features = false, features = ["websocket"] }
 
 [profile.release]
 panic = "abort"
 lto = true
 codegen-units = 1
-
-[profile.release.package.ferrogallic_web]
-# todo does this actually help?
-opt-level = "s"
