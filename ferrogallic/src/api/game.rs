@@ -336,7 +336,7 @@ async fn game_loop(
                             } => {
                                 if *drawing == user_id || correct.contains(&user_id) {
                                     Guess::Message(user_id, guess)
-                                } else if &guess == word {
+                                } else if guess.eq_ignore_ascii_case(word) {
                                     if let GameState::Drawing { correct, .. } = game_state.write() {
                                         correct.push(user_id);
                                     }
