@@ -16,7 +16,7 @@ pub fn start() {
     #[cfg(debug_assertions)]
     console_error_panic_hook::set_once();
     #[cfg(debug_assertions)]
-    console_log::init_with_level(log::Level::Trace).expect("initializing logger");
+    wasm_logger::init(wasm_logger::Config::new(log::Level::Trace));
 
     yew::start_app::<app::App>()
 }
