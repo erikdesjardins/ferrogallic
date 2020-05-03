@@ -47,16 +47,25 @@ impl Component for GuessArea {
             .iter()
             .map(|guess| match guess {
                 Guess::System(system) => html! {
-                    <div>{"[SYSTEM] "}{system}</div>
+                    <div>{system}</div>
                 },
                 Guess::Message(user_id, message) => html! {
                     <div>{"["}{format_user(*user_id)}{"] "}{message}</div>
+                },
+                Guess::NowChoosing(user_id) => html! {
+                    <div>{"["}{format_user(*user_id)}{"] is choosing a word."}</div>
                 },
                 Guess::Guess(user_id, guess) => html! {
                     <div>{"["}{format_user(*user_id)}{"] guessed '"}{guess}{"'."}</div>
                 },
                 Guess::Correct(user_id) => html! {
                     <div>{"["}{format_user(*user_id)}{"] "}{" guessed correctly!"}</div>
+                },
+                Guess::EarnedPoints(user_id, points) => html! {
+                    <div>{"["}{format_user(*user_id)}{"] earned "}{points}{" points."}</div>
+                },
+                Guess::TimeExpired => html! {
+                    <div>{"Time's up!"}</div>
                 },
             })
             .collect::<Html>();

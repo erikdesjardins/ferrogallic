@@ -3,7 +3,7 @@ use crate::words;
 use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::game::{Canvas, Game, GameReq, GameState, Player, PlayerStatus};
 use ferrogallic_shared::config::{
-    NUMBER_OF_WORDS_TO_CHOOSE, REMOVE_DISCONNECTED_PLAYERS, WS_HEARTBEAT_INTERVAL,
+    GUESS_SECONDS, NUMBER_OF_WORDS_TO_CHOOSE, PERFECT_GUESS_SCORE, REMOVE_DISCONNECTED_PLAYERS,
     WS_RX_BUFFER_SHARED, WS_TX_BUFFER_BROADCAST,
 };
 use ferrogallic_shared::domain::{Guess, Lobby, Nickname, UserId};
@@ -17,6 +17,7 @@ use std::fmt;
 use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::task::spawn;
@@ -160,7 +161,7 @@ enum GameLoop {
     Message(UserId, Epoch, GameReq),
     Disconnect(UserId, Epoch),
     Remove(UserId, Epoch),
-    SendHeartbeat,
+    OneSecondElapsed,
 }
 
 #[derive(Debug, Clone)]
@@ -236,9 +237,9 @@ async fn game_loop(
         let mut tx_self = tx_self.clone();
         async move {
             loop {
-                delay_for(WS_HEARTBEAT_INTERVAL).await;
-                if let Err(e) = tx_self.send(GameLoop::SendHeartbeat).await {
-                    log::info!("Lobby={} stopping heartbeat: {}", lobby, e);
+                delay_for(Duration::from_secs(1)).await;
+                if let Err(e) = tx_self.send(GameLoop::OneSecondElapsed).await {
+                    log::info!("Lobby={} stopping timer: {}", lobby, e);
                     return;
                 }
             }
@@ -255,15 +256,9 @@ async fn game_loop(
                 let onboarding = Onboarding {
                     rx_broadcast: tx_broadcast.subscribe(),
                     messages: vec![
-                        Game::Game {
-                            state: Arc::new(game_state.read().clone()),
-                        },
-                        Game::GuessBulk {
-                            guesses: guesses.clone(),
-                        },
-                        Game::CanvasBulk {
-                            events: canvas_events.clone(),
-                        },
+                        Game::Game(Arc::new(game_state.read().clone())),
+                        Game::GuessBulk(guesses.clone()),
+                        Game::CanvasBulk(canvas_events.clone()),
                     ],
                 };
                 if let Err(_) = tx_onboard.send(onboarding) {
@@ -294,7 +289,7 @@ async fn game_loop(
                 Some(conn) if conn.epoch == epoch => match req {
                     GameReq::Canvas { event } => {
                         canvas_events.push(event);
-                        tx_broadcast.send(Broadcast::Exclude(user_id, Game::Canvas { event }))?;
+                        tx_broadcast.send(Broadcast::Exclude(user_id, Game::Canvas(event)))?;
                     }
                     GameReq::Choose { word } => match game_state.read() {
                         GameState::ChoosingWords { choosing, words }
@@ -302,13 +297,12 @@ async fn game_loop(
                         {
                             *game_state.write() = GameState::Drawing {
                                 drawing: *choosing,
-                                correct: Default::default(),
+                                correct_scores: Default::default(),
                                 word,
+                                seconds_remaining: GUESS_SECONDS,
                             };
                             canvas_events.clear();
-                            tx_broadcast.send(Broadcast::Everyone(Game::Canvas {
-                                event: Canvas::Clear,
-                            }))?;
+                            tx_broadcast.send(Broadcast::Everyone(Game::Canvas(Canvas::Clear)))?;
                         }
                         gs => {
                             let nick = &conn.player.nick;
@@ -332,14 +326,19 @@ async fn game_loop(
                             GameState::ChoosingWords { .. } => Guess::Message(user_id, guess),
                             GameState::Drawing {
                                 drawing,
-                                correct,
+                                correct_scores,
                                 word,
+                                seconds_remaining,
                             } => {
-                                if *drawing == user_id || correct.contains(&user_id) {
+                                if *drawing == user_id || correct_scores.contains_key(&user_id) {
                                     Guess::Message(user_id, guess)
                                 } else if guess.eq_ignore_ascii_case(word) {
-                                    if let GameState::Drawing { correct, .. } = game_state.write() {
-                                        correct.push(user_id);
+                                    let seconds_remaining = *seconds_remaining;
+                                    if let GameState::Drawing { correct_scores, .. } =
+                                        game_state.write()
+                                    {
+                                        correct_scores
+                                            .insert(user_id, guesser_score(seconds_remaining));
                                     }
                                     Guess::Correct(user_id)
                                 } else {
@@ -348,7 +347,7 @@ async fn game_loop(
                             }
                         };
                         guesses.push(guess.clone());
-                        tx_broadcast.send(Broadcast::Everyone(Game::Guess { guess }))?;
+                        tx_broadcast.send(Broadcast::Everyone(Game::Guess(guess)))?;
                     }
                     GameReq::Join { .. } => {
                         let nick = &conn.player.nick;
@@ -382,9 +381,19 @@ async fn game_loop(
                     }
                 }
             }
-            GameLoop::SendHeartbeat => {
-                tx_broadcast.send(Broadcast::Everyone(Game::Heartbeat))?;
-            }
+            GameLoop::OneSecondElapsed => match game_state.read() {
+                GameState::WaitingToStart { .. } | GameState::ChoosingWords { .. } => {
+                    tx_broadcast.send(Broadcast::Everyone(Game::Heartbeat))?;
+                }
+                GameState::Drawing { .. } => {
+                    if let GameState::Drawing {
+                        seconds_remaining, ..
+                    } = game_state.write()
+                    {
+                        *seconds_remaining = seconds_remaining.saturating_sub(1);
+                    }
+                }
+            },
         }
 
         let transition = if game_state.is_changed() {
@@ -399,14 +408,34 @@ async fn game_loop(
                 } => None,
                 GameState::Drawing {
                     drawing,
-                    correct,
+                    correct_scores,
                     word: _,
+                    seconds_remaining,
                 } => {
-                    if connections
-                        .read()
-                        .keys()
-                        .all(|uid| drawing == uid || correct.contains(uid))
+                    if *seconds_remaining == 0
+                        || connections
+                            .read()
+                            .keys()
+                            .all(|uid| drawing == uid || correct_scores.contains_key(uid))
                     {
+                        if *seconds_remaining == 0 {
+                            tx_broadcast
+                                .send(Broadcast::Everyone(Game::Guess(Guess::TimeExpired)))?;
+                        }
+                        let connections = connections.write();
+                        for (&user_id, &score) in correct_scores {
+                            connections
+                                .entry(user_id)
+                                .and_modify(|conn| conn.player.score += score);
+                            tx_broadcast.send(Broadcast::Everyone(Game::Guess(
+                                Guess::EarnedPoints(user_id, score),
+                            )))?;
+                        }
+                        let player_count = connections.len() as u32;
+                        if let Some(drawer) = connections.get_mut(drawing) {
+                            drawer.player.score +=
+                                drawer_score(correct_scores.values().copied(), player_count);
+                        }
                         Some(Transition::ChoosingWords {
                             previously_drawing: Some(*drawing),
                         })
@@ -438,26 +467,35 @@ async fn game_loop(
                     .map(|&s| s.into())
                     .collect();
                 *game_state.write() = GameState::ChoosingWords { choosing, words };
+                tx_broadcast.send(Broadcast::Everyone(Game::Guess(Guess::NowChoosing(
+                    choosing,
+                ))))?;
             }
             None => {}
         }
 
         if let Some(connections) = connections.reset_if_changed() {
-            tx_broadcast.send(Broadcast::Everyone(Game::Players {
-                players: Arc::new(
-                    connections
-                        .iter()
-                        .map(|(user_id, conn)| (*user_id, conn.player.clone()))
-                        .collect(),
-                ),
-            }))?;
+            tx_broadcast.send(Broadcast::Everyone(Game::Players(Arc::new(
+                connections
+                    .iter()
+                    .map(|(user_id, conn)| (*user_id, conn.player.clone()))
+                    .collect(),
+            ))))?;
         }
         if let Some(game_state) = game_state.reset_if_changed() {
-            tx_broadcast.send(Broadcast::Everyone(Game::Game {
-                state: Arc::new(game_state.clone()),
-            }))?;
+            tx_broadcast.send(Broadcast::Everyone(Game::Game(Arc::new(
+                game_state.clone(),
+            ))))?;
         }
     }
+}
+
+fn guesser_score(seconds_remaining: u8) -> u32 {
+    u32::from(seconds_remaining) * PERFECT_GUESS_SCORE / u32::from(GUESS_SECONDS)
+}
+
+fn drawer_score(scores: impl Iterator<Item = u32>, player_count: u32) -> u32 {
+    scores.sum::<u32>() / (player_count - 1)
 }
 
 struct Invalidate<T> {

@@ -7,24 +7,12 @@ use std::sync::Arc;
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum Game {
     Heartbeat,
-    Players {
-        players: Arc<BTreeMap<UserId, Player>>,
-    },
-    Game {
-        state: Arc<GameState>,
-    },
-    Canvas {
-        event: Canvas,
-    },
-    CanvasBulk {
-        events: Vec<Canvas>,
-    },
-    Guess {
-        guess: Guess,
-    },
-    GuessBulk {
-        guesses: Vec<Guess>,
-    },
+    Players(Arc<BTreeMap<UserId, Player>>),
+    Game(Arc<GameState>),
+    Canvas(Canvas),
+    CanvasBulk(Vec<Canvas>),
+    Guess(Guess),
+    GuessBulk(Vec<Guess>),
 }
 
 #[test]
@@ -61,8 +49,9 @@ pub enum GameState {
     },
     Drawing {
         drawing: UserId,
-        correct: Vec<UserId>,
+        correct_scores: BTreeMap<UserId, u32>,
         word: Box<str>,
+        seconds_remaining: u8,
     },
 }
 
