@@ -2,7 +2,7 @@ use crate::component;
 use crate::page;
 use crate::route::AppRoute;
 use anyhow::Error;
-use std::rc::Rc;
+use std::sync::Arc;
 use yew::{html, Component, ComponentLink, Html, ShouldRender};
 use yew_router::router::Router;
 
@@ -12,7 +12,7 @@ pub enum Msg {
 
 pub struct App {
     link: ComponentLink<Self>,
-    error: Option<Rc<Error>>,
+    error: Option<Arc<Error>>,
 }
 
 impl Component for App {
@@ -26,7 +26,7 @@ impl Component for App {
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::SetError(e) => {
-                self.error = Some(Rc::new(e));
+                self.error = Some(Arc::new(e));
                 true
             }
         }
