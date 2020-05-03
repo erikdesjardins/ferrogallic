@@ -85,8 +85,8 @@ impl fmt::Display for Lobby {
 #[derive(Debug, Deserialize, Serialize, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub enum Guess {
     System(Box<str>),
-    Message(Box<str>),
-    Guess(Box<str>),
+    Message(UserId, Box<str>),
+    Guess(UserId, Box<str>),
     Correct(UserId),
 }
 
