@@ -11,8 +11,8 @@ pub enum Game {
     Game(Arc<GameState>),
     Canvas(Canvas),
     CanvasBulk(Vec<Canvas>),
-    Guess(Guess),
-    GuessBulk(Vec<Guess>),
+    Guess(Arc<Guess>),
+    GuessBulk(Vec<Arc<Guess>>),
 }
 
 #[test]
@@ -23,7 +23,7 @@ fn game_size() {
 #[derive(Debug, Deserialize, Serialize)]
 pub enum GameReq {
     Join { lobby: Lobby, nick: Nickname },
-    Choose { word: Box<str> },
+    Choose { word: Arc<str> },
     Canvas { event: Canvas },
     Guess { guess: Box<str> },
 }
@@ -45,12 +45,12 @@ pub enum GameState {
     },
     ChoosingWords {
         choosing: UserId,
-        words: Box<[Box<str>]>,
+        words: Arc<[Arc<str>]>,
     },
     Drawing {
         drawing: UserId,
         correct_scores: BTreeMap<UserId, u32>,
-        word: Box<str>,
+        word: Arc<str>,
         seconds_remaining: u8,
     },
 }

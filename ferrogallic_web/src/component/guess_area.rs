@@ -10,7 +10,7 @@ pub enum Msg {}
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub players: Arc<BTreeMap<UserId, Player>>,
-    pub guesses: Arc<Vec<Guess>>,
+    pub guesses: Arc<Vec<Arc<Guess>>>,
 }
 
 pub struct GuessArea {
@@ -45,7 +45,7 @@ impl Component for GuessArea {
             .props
             .guesses
             .iter()
-            .map(|guess| match guess {
+            .map(|guess| match guess.as_ref() {
                 Guess::System(system) => html! {
                     <div>{system}</div>
                 },

@@ -25,7 +25,7 @@ pub enum Msg {
     Ignore,
     ConnStatus(WebSocketStatus),
     Message(Game),
-    ChooseWord(Box<str>),
+    ChooseWord(Arc<str>),
     SendGuess(String),
     Pointer(PointerAction),
     Undo,
@@ -64,7 +64,7 @@ pub struct InGame {
     color: Color,
     players: Arc<BTreeMap<UserId, Player>>,
     game: Arc<GameState>,
-    guesses: Arc<Vec<Guess>>,
+    guesses: Arc<Vec<Arc<Guess>>>,
 }
 
 struct CanvasState {

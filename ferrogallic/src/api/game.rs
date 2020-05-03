@@ -311,7 +311,7 @@ async fn game_loop(
                         }
                     },
                     GameReq::Guess { guess } => {
-                        let guess = match game_state.read() {
+                        let guess = Arc::new(match game_state.read() {
                             GameState::WaitingToStart { .. } => match guess.as_ref() {
                                 "start" => {
                                     if let GameState::WaitingToStart { starting } =
@@ -345,7 +345,7 @@ async fn game_loop(
                                     Guess::Guess(user_id, guess)
                                 }
                             }
-                        };
+                        });
                         guesses.push(guess.clone());
                         tx_broadcast.send(Broadcast::Everyone(Game::Guess(guess)))?;
                     }
@@ -419,17 +419,18 @@ async fn game_loop(
                             .all(|uid| drawing == uid || correct_scores.contains_key(uid))
                     {
                         if *seconds_remaining == 0 {
-                            tx_broadcast
-                                .send(Broadcast::Everyone(Game::Guess(Guess::TimeExpired)))?;
+                            let guess = Arc::new(Guess::TimeExpired);
+                            guesses.push(guess.clone());
+                            tx_broadcast.send(Broadcast::Everyone(Game::Guess(guess)))?;
                         }
                         let connections = connections.write();
                         for (&user_id, &score) in correct_scores {
                             connections
                                 .entry(user_id)
                                 .and_modify(|conn| conn.player.score += score);
-                            tx_broadcast.send(Broadcast::Everyone(Game::Guess(
-                                Guess::EarnedPoints(user_id, score),
-                            )))?;
+                            let guess = Arc::new(Guess::EarnedPoints(user_id, score));
+                            guesses.push(guess.clone());
+                            tx_broadcast.send(Broadcast::Everyone(Game::Guess(guess)))?;
                         }
                         let player_count = connections.len() as u32;
                         if let Some(drawer) = connections.get_mut(drawing) {
@@ -467,9 +468,9 @@ async fn game_loop(
                     .map(|&s| s.into())
                     .collect();
                 *game_state.write() = GameState::ChoosingWords { choosing, words };
-                tx_broadcast.send(Broadcast::Everyone(Game::Guess(Guess::NowChoosing(
-                    choosing,
-                ))))?;
+                let guess = Arc::new(Guess::NowChoosing(choosing));
+                guesses.push(guess.clone());
+                tx_broadcast.send(Broadcast::Everyone(Game::Guess(guess)))?;
             }
             None => {}
         }

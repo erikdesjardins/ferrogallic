@@ -10,15 +10,16 @@ use std::ops::Deref;
 use std::ptr;
 use std::slice;
 use std::str::FromStr;
+use std::sync::Arc;
 
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub struct UserId(u64);
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialOrd, Ord, PartialEq, Eq)]
-pub struct Nickname(Box<str>);
+pub struct Nickname(Arc<str>);
 
 impl Nickname {
-    pub fn new(nick: impl Into<Box<str>>) -> Self {
+    pub fn new(nick: impl Into<Arc<str>>) -> Self {
         Self(nick.into())
     }
 
@@ -52,10 +53,10 @@ impl fmt::Display for Nickname {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
-pub struct Lobby(Box<str>);
+pub struct Lobby(Arc<str>);
 
 impl Lobby {
-    pub fn new(lobby: impl Into<Box<str>>) -> Self {
+    pub fn new(lobby: impl Into<Arc<str>>) -> Self {
         Self(lobby.into())
     }
 }
