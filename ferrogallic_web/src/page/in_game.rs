@@ -22,7 +22,6 @@ use yew::{
 use yew_router::route::Route;
 
 pub enum Msg {
-    Ignore,
     ConnStatus(WebSocketStatus),
     Message(Game),
     ChooseWord(Arc<str>),
@@ -33,6 +32,7 @@ pub enum Msg {
     SetTool(Tool),
     SetColor(Color),
     SetGlobalError(Error),
+    Ignore,
 }
 
 pub enum PointerAction {
@@ -106,7 +106,6 @@ impl Component for InGame {
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::Ignore => false,
             Msg::ConnStatus(status) => match status {
                 WebSocketStatus::Opened => {
                     if let Some(ws) = &mut self.active_ws {
@@ -131,15 +130,6 @@ impl Component for InGame {
                 }
             },
             Msg::Message(msg) => match msg {
-                Game::Heartbeat => false,
-                Game::Players(players) => {
-                    self.players = players;
-                    true
-                }
-                Game::Game(game) => {
-                    self.game = game;
-                    true
-                }
                 Game::Canvas(event) => {
                     self.render_to_virtual(event);
                     self.schedule_render_to_canvas();
@@ -152,6 +142,14 @@ impl Component for InGame {
                     self.schedule_render_to_canvas();
                     false
                 }
+                Game::Players(players) => {
+                    self.players = players;
+                    true
+                }
+                Game::Game(game) => {
+                    self.game = game;
+                    true
+                }
                 Game::Guess(guess) => {
                     Arc::make_mut(&mut self.guesses).push(guess);
                     true
@@ -160,6 +158,7 @@ impl Component for InGame {
                     Arc::make_mut(&mut self.guesses).extend(guesses);
                     true
                 }
+                Game::Heartbeat => false,
             },
             Msg::ChooseWord(word) => {
                 if let Some(ws) = &mut self.active_ws {
@@ -260,6 +259,7 @@ impl Component for InGame {
                 self.app_link.send_message(app::Msg::SetError(e));
                 false
             }
+            Msg::Ignore => false,
         }
     }
 

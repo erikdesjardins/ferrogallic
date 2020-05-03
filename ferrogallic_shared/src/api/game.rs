@@ -6,13 +6,13 @@ use std::sync::Arc;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum Game {
-    Heartbeat,
-    Players(Arc<BTreeMap<UserId, Player>>),
-    Game(Arc<GameState>),
     Canvas(Canvas),
     CanvasBulk(Vec<Canvas>),
+    Players(Arc<BTreeMap<UserId, Player>>),
+    Game(Arc<GameState>),
     Guess(Arc<Guess>),
     GuessBulk(Vec<Arc<Guess>>),
+    Heartbeat,
 }
 
 #[test]
@@ -22,10 +22,10 @@ fn game_size() {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum GameReq {
-    Join { lobby: Lobby, nick: Nickname },
-    Choose { word: Arc<str> },
     Canvas { event: Canvas },
+    Choose { word: Arc<str> },
     Guess { guess: Box<str> },
+    Join { lobby: Lobby, nick: Nickname },
 }
 
 #[test]
