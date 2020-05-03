@@ -34,6 +34,13 @@ impl Component for GuessArea {
     }
 
     fn view(&self) -> Html {
+        let format_user = |user_id| {
+            self.props
+                .players
+                .get(&user_id)
+                .map(|p| &*p.nick)
+                .unwrap_or("<unknown>")
+        };
         let guesses = self
             .props
             .guesses
@@ -42,21 +49,15 @@ impl Component for GuessArea {
                 Guess::System(system) => html! {
                     <div>{"[SYSTEM] "}{system}</div>
                 },
-                Guess::Message(message) => html! {
-                    <div>{message}</div>
+                Guess::Message(user_id, message) => html! {
+                    <div>{"["}{format_user(*user_id)}{"] "}{message}</div>
                 },
-                Guess::Guess(guess) => html! {
-                    <div>{"[guess] "}{guess}</div>
+                Guess::Guess(user_id, guess) => html! {
+                    <div>{"["}{format_user(*user_id)}{"] guessed '"}{guess}{"'."}</div>
                 },
-                Guess::Correct(user_id) => {
-                    let player = self
-                        .props
-                        .players
-                        .get(&user_id)
-                        .map(|p| &*p.nick)
-                        .unwrap_or("<unknown>");
-                    html! { <div>{player}{" guessed correctly!"}</div> }
-                }
+                Guess::Correct(user_id) => html! {
+                    <div>{"["}{format_user(*user_id)}{"] "}{" guessed correctly!"}</div>
+                },
             })
             .collect::<Html>();
         html! {

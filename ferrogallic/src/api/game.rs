@@ -172,7 +172,7 @@ enum Broadcast {
 
 #[test]
 fn broadcast_size() {
-    assert_eq!(std::mem::size_of::<Broadcast>(), 48);
+    assert_eq!(std::mem::size_of::<Broadcast>(), 56);
 }
 
 async fn run_game_loop(
@@ -326,23 +326,23 @@ async fn game_loop(
                                     }
                                     Guess::System("Starting game...".into())
                                 }
-                                _ => Guess::Message(guess),
+                                _ => Guess::Message(user_id, guess),
                             },
-                            GameState::ChoosingWords { .. } => Guess::Message(guess),
+                            GameState::ChoosingWords { .. } => Guess::Message(user_id, guess),
                             GameState::Drawing {
                                 drawing,
                                 correct,
                                 word,
                             } => {
                                 if *drawing == user_id || correct.contains(&user_id) {
-                                    Guess::Message(guess)
+                                    Guess::Message(user_id, guess)
                                 } else if &guess == word {
                                     if let GameState::Drawing { correct, .. } = game_state.write() {
                                         correct.push(user_id);
                                     }
                                     Guess::Correct(user_id)
                                 } else {
-                                    Guess::Guess(guess)
+                                    Guess::Guess(user_id, guess)
                                 }
                             }
                         };
