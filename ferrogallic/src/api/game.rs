@@ -305,6 +305,7 @@ async fn game_loop(
                                 correct: Default::default(),
                                 word,
                             };
+                            canvas_events.clear();
                             tx_broadcast.send(Broadcast::Everyone(Game::Canvas {
                                 event: Canvas::Clear,
                             }))?;
