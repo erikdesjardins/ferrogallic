@@ -17,7 +17,7 @@ pub enum Game {
 
 #[test]
 fn game_size() {
-    assert_eq!(std::mem::size_of::<Game>(), 40);
+    assert_eq!(std::mem::size_of::<Game>(), 32);
 }
 
 #[derive(Debug, Deserialize, Serialize)]
