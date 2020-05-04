@@ -22,10 +22,9 @@ use yew::{
 use yew_router::route::Route;
 
 pub enum Msg {
-    Ignore,
     ConnStatus(WebSocketStatus),
     Message(Game),
-    ChooseWord(Box<str>),
+    ChooseWord(Arc<str>),
     SendGuess(String),
     Pointer(PointerAction),
     Undo,
@@ -33,6 +32,7 @@ pub enum Msg {
     SetTool(Tool),
     SetColor(Color),
     SetGlobalError(Error),
+    Ignore,
 }
 
 pub enum PointerAction {
@@ -64,7 +64,7 @@ pub struct InGame {
     color: Color,
     players: Arc<BTreeMap<UserId, Player>>,
     game: Arc<GameState>,
-    guesses: Arc<Vec<Guess>>,
+    guesses: Arc<Vec<Arc<Guess>>>,
 }
 
 struct CanvasState {
@@ -106,7 +106,6 @@ impl Component for InGame {
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::Ignore => false,
             Msg::ConnStatus(status) => match status {
                 WebSocketStatus::Opened => {
                     if let Some(ws) = &mut self.active_ws {
@@ -131,35 +130,35 @@ impl Component for InGame {
                 }
             },
             Msg::Message(msg) => match msg {
-                Game::Heartbeat => false,
-                Game::Players { players } => {
-                    self.players = players;
-                    true
-                }
-                Game::Game { state } => {
-                    self.game = state;
-                    true
-                }
-                Game::Canvas { event } => {
+                Game::Canvas(event) => {
                     self.render_to_virtual(event);
                     self.schedule_render_to_canvas();
                     false
                 }
-                Game::CanvasBulk { events } => {
+                Game::CanvasBulk(events) => {
                     for event in events {
                         self.render_to_virtual(event);
                     }
                     self.schedule_render_to_canvas();
                     false
                 }
-                Game::Guess { guess } => {
+                Game::Players(players) => {
+                    self.players = players;
+                    true
+                }
+                Game::Game(game) => {
+                    self.game = game;
+                    true
+                }
+                Game::Guess(guess) => {
                     Arc::make_mut(&mut self.guesses).push(guess);
                     true
                 }
-                Game::GuessBulk { mut guesses } => {
-                    Arc::make_mut(&mut self.guesses).append(&mut guesses);
+                Game::GuessBulk(guesses) => {
+                    Arc::make_mut(&mut self.guesses).extend(guesses);
                     true
                 }
+                Game::Heartbeat => false,
             },
             Msg::ChooseWord(word) => {
                 if let Some(ws) = &mut self.active_ws {
@@ -260,6 +259,7 @@ impl Component for InGame {
                 self.app_link.send_message(app::Msg::SetError(e));
                 false
             }
+            Msg::Ignore => false,
         }
     }
 
@@ -329,6 +329,7 @@ impl Component for InGame {
 
         let mut can_draw = false;
         let mut choose_word = html! {};
+        let mut timer = html! {};
         let mut guess_template = None;
         let _: () = match self.game.as_ref() {
             GameState::WaitingToStart { .. } => {
@@ -343,9 +344,13 @@ impl Component for InGame {
             }
             GameState::Drawing {
                 drawing,
-                correct: _,
+                correct_scores: _,
                 word,
+                seconds_remaining,
             } => {
+                timer = html! {
+                    <>{" - "}{seconds_remaining}{"s"}</>
+                };
                 if *drawing == self.nick.user_id() {
                     can_draw = true;
                     guess_template = Some(component::guess_input::Template::reveal_all(&word));
@@ -366,7 +371,7 @@ impl Component for InGame {
                         </section>
                     </fieldset>
                     <fieldset>
-                        <legend>{"Canvas"}</legend>
+                        <legend>{"Canvas"}{timer}</legend>
                         <canvas
                             ref=self.canvas_ref.clone()
                             style=if can_draw { "" } else { "pointer-events: none" }

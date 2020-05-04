@@ -10,7 +10,7 @@ pub enum Msg {}
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub players: Arc<BTreeMap<UserId, Player>>,
-    pub guesses: Arc<Vec<Guess>>,
+    pub guesses: Arc<Vec<Arc<Guess>>>,
 }
 
 pub struct GuessArea {
@@ -45,18 +45,27 @@ impl Component for GuessArea {
             .props
             .guesses
             .iter()
-            .map(|guess| match guess {
+            .map(|guess| match guess.as_ref() {
                 Guess::System(system) => html! {
-                    <div>{"[SYSTEM] "}{system}</div>
+                    <div>{system}</div>
                 },
                 Guess::Message(user_id, message) => html! {
                     <div>{"["}{format_user(*user_id)}{"] "}{message}</div>
+                },
+                Guess::NowChoosing(user_id) => html! {
+                    <div>{"["}{format_user(*user_id)}{"] is choosing a word."}</div>
                 },
                 Guess::Guess(user_id, guess) => html! {
                     <div>{"["}{format_user(*user_id)}{"] guessed '"}{guess}{"'."}</div>
                 },
                 Guess::Correct(user_id) => html! {
                     <div>{"["}{format_user(*user_id)}{"] "}{" guessed correctly!"}</div>
+                },
+                Guess::EarnedPoints(user_id, points) => html! {
+                    <div>{"["}{format_user(*user_id)}{"] earned "}{points}{" points."}</div>
+                },
+                Guess::TimeExpired => html! {
+                    <div>{"Time's up!"}</div>
                 },
             })
             .collect::<Html>();

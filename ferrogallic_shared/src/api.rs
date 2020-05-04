@@ -4,12 +4,12 @@ use serde::Serialize;
 pub mod game;
 pub mod lobby;
 
-pub trait ApiEndpoint: Serialize + DeserializeOwned + Send + 'static {
+pub trait ApiEndpoint: Serialize + DeserializeOwned + 'static {
     const PATH: &'static str;
-    type Req: Serialize + DeserializeOwned + Send;
+    type Req: Serialize + DeserializeOwned;
 }
 
-pub trait WsEndpoint: Serialize + DeserializeOwned + Send + 'static {
+pub trait WsEndpoint: Serialize + DeserializeOwned + 'static {
     const PATH: &'static str;
-    type Req: Serialize + DeserializeOwned + Send;
+    type Req: Serialize + DeserializeOwned;
 }

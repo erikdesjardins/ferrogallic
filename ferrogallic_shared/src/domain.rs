@@ -6,19 +6,22 @@ use std::convert::Infallible;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem;
+use std::num::NonZeroUsize;
 use std::ops::Deref;
 use std::ptr;
 use std::slice;
 use std::str::FromStr;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub struct UserId(u64);
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialOrd, Ord, PartialEq, Eq)]
-pub struct Nickname(Box<str>);
+pub struct Nickname(Arc<str>);
 
 impl Nickname {
-    pub fn new(nick: impl Into<Box<str>>) -> Self {
+    pub fn new(nick: impl Into<Arc<str>>) -> Self {
         Self(nick.into())
     }
 
@@ -52,10 +55,10 @@ impl fmt::Display for Nickname {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
-pub struct Lobby(Box<str>);
+pub struct Lobby(Arc<str>);
 
 impl Lobby {
-    pub fn new(lobby: impl Into<Box<str>>) -> Self {
+    pub fn new(lobby: impl Into<Arc<str>>) -> Self {
         Self(lobby.into())
     }
 }
@@ -82,12 +85,33 @@ impl fmt::Display for Lobby {
     }
 }
 
+#[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialEq, Eq)]
+pub struct Epoch(NonZeroUsize);
+
+impl Epoch {
+    pub fn next() -> Self {
+        static NEXT: AtomicUsize = AtomicUsize::new(1);
+
+        let epoch = NEXT.fetch_add(1, Ordering::Relaxed);
+        Self(NonZeroUsize::new(epoch).unwrap())
+    }
+}
+
+impl fmt::Display for Epoch {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub enum Guess {
     System(Box<str>),
     Message(UserId, Box<str>),
+    NowChoosing(UserId),
     Guess(UserId, Box<str>),
     Correct(UserId),
+    EarnedPoints(UserId, u32),
+    TimeExpired,
 }
 
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]

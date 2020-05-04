@@ -1,43 +1,31 @@
 use crate::api::WsEndpoint;
-use crate::domain::{Color, Guess, LineWidth, Lobby, Nickname, UserId};
+use crate::domain::{Color, Epoch, Guess, LineWidth, Lobby, Nickname, UserId};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum Game {
+    Canvas(Canvas),
+    CanvasBulk(Vec<Canvas>),
+    Players(Arc<BTreeMap<UserId, Player>>),
+    Game(Arc<GameState>),
+    Guess(Arc<Guess>),
+    GuessBulk(Vec<Arc<Guess>>),
     Heartbeat,
-    Players {
-        players: Arc<BTreeMap<UserId, Player>>,
-    },
-    Game {
-        state: Arc<GameState>,
-    },
-    Canvas {
-        event: Canvas,
-    },
-    CanvasBulk {
-        events: Vec<Canvas>,
-    },
-    Guess {
-        guess: Guess,
-    },
-    GuessBulk {
-        guesses: Vec<Guess>,
-    },
 }
 
 #[test]
 fn game_size() {
-    assert_eq!(std::mem::size_of::<Game>(), 40);
+    assert_eq!(std::mem::size_of::<Game>(), 32);
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum GameReq {
-    Join { lobby: Lobby, nick: Nickname },
-    Choose { word: Box<str> },
     Canvas { event: Canvas },
+    Choose { word: Arc<str> },
     Guess { guess: Box<str> },
+    Join { lobby: Lobby, nick: Nickname },
 }
 
 #[test]
@@ -57,12 +45,13 @@ pub enum GameState {
     },
     ChoosingWords {
         choosing: UserId,
-        words: Box<[Box<str>]>,
+        words: Arc<[Arc<str>]>,
     },
     Drawing {
         drawing: UserId,
-        correct: Vec<UserId>,
-        word: Box<str>,
+        correct_scores: BTreeMap<UserId, u32>,
+        word: Arc<str>,
+        seconds_remaining: u8,
     },
 }
 
@@ -80,6 +69,7 @@ fn gamestate_size() {
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Player {
     pub nick: Nickname,
+    pub epoch: Epoch,
     pub status: PlayerStatus,
     pub score: u32,
 }

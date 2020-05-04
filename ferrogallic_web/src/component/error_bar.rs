@@ -1,64 +1,60 @@
 use crate::util::NeqAssign;
 use anyhow::Error;
-use std::rc::Rc;
+use std::sync::Arc;
 use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
 
 pub enum Msg {}
 
 #[derive(Clone, Properties)]
 pub struct Props {
-    pub error: Option<Rc<Error>>,
+    pub error: Option<Arc<Error>>,
+}
+
+impl PartialEq for Props {
+    fn eq(&self, Self { error }: &Self) -> bool {
+        match (&self.error, error) {
+            (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+            (None, None) => true,
+            _ => false,
+        }
+    }
 }
 
 pub struct ErrorBar {
-    message: Option<String>,
+    props: Props,
 }
 
 impl Component for ErrorBar {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(Props { error }: Self::Properties, _: ComponentLink<Self>) -> Self {
-        Self {
-            message: Self::format_error(error),
-        }
+    fn create(props: Self::Properties, _: ComponentLink<Self>) -> Self {
+        Self { props }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {}
     }
 
-    fn change(&mut self, Props { error }: Self::Properties) -> ShouldRender {
-        let new_message = Self::format_error(error);
-        self.message.neq_assign(new_message)
+    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        self.props.neq_assign(props)
     }
 
     fn view(&self) -> Html {
-        match &self.message {
-            Some(msg) => {
+        match &self.props.error {
+            Some(e) => {
+                let message = e
+                    .chain()
+                    .map(|e| e.to_string())
+                    .collect::<Vec<_>>()
+                    .join("; caused by: ");
                 html! {
-                    <p class="error-bar">{msg}</p>
+                    <p class="error-bar">{message}</p>
                 }
             }
             None => {
-                html! {
-                    <></>
-                }
+                html! {}
             }
-        }
-    }
-}
-
-impl ErrorBar {
-    fn format_error(e: Option<Rc<Error>>) -> Option<String> {
-        match e {
-            Some(e) => Some(
-                e.chain()
-                    .map(|e| e.to_string())
-                    .collect::<Vec<_>>()
-                    .join("; caused by: "),
-            ),
-            None => None,
         }
     }
 }

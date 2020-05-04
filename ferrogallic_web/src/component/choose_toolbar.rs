@@ -1,5 +1,6 @@
 use crate::page;
 use crate::util::NeqAssign;
+use std::sync::Arc;
 use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
 
 pub enum Msg {}
@@ -7,12 +8,12 @@ pub enum Msg {}
 #[derive(Clone, Properties)]
 pub struct Props {
     pub game_link: ComponentLink<page::InGame>,
-    pub words: Box<[Box<str>]>,
+    pub words: Arc<[Arc<str>]>,
 }
 
 pub struct ChooseToolbar {
     game_link: ComponentLink<page::InGame>,
-    words: Box<[Box<str>]>,
+    words: Arc<[Arc<str>]>,
 }
 
 impl Component for ChooseToolbar {
