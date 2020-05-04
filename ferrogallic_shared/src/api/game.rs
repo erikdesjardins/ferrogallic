@@ -1,5 +1,5 @@
 use crate::api::WsEndpoint;
-use crate::domain::{Color, Guess, LineWidth, Lobby, Nickname, UserId};
+use crate::domain::{Color, Epoch, Guess, LineWidth, Lobby, Nickname, UserId};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -69,6 +69,7 @@ fn gamestate_size() {
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Player {
     pub nick: Nickname,
+    pub epoch: Epoch,
     pub status: PlayerStatus,
     pub score: u32,
 }

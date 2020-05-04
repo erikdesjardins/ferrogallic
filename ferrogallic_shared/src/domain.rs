@@ -6,10 +6,12 @@ use std::convert::Infallible;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem;
+use std::num::NonZeroUsize;
 use std::ops::Deref;
 use std::ptr;
 use std::slice;
 use std::str::FromStr;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
@@ -78,6 +80,24 @@ impl FromStr for Lobby {
 }
 
 impl fmt::Display for Lobby {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialEq, Eq)]
+pub struct Epoch(NonZeroUsize);
+
+impl Epoch {
+    pub fn next() -> Self {
+        static NEXT: AtomicUsize = AtomicUsize::new(1);
+
+        let epoch = NEXT.fetch_add(1, Ordering::Relaxed);
+        Self(NonZeroUsize::new(epoch).unwrap())
+    }
+}
+
+impl fmt::Display for Epoch {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.0, f)
     }
