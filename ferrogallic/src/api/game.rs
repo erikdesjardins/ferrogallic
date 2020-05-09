@@ -459,7 +459,10 @@ fn guesser_score(seconds_remaining: u8) -> u32 {
 }
 
 fn drawer_score(scores: impl Iterator<Item = u32>, player_count: u32) -> u32 {
-    scores.sum::<u32>() / (player_count - 1)
+    scores
+        .sum::<u32>()
+        .checked_div(player_count - 1)
+        .unwrap_or(0)
 }
 
 struct Invalidate<T> {
