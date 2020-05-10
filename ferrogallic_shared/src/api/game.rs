@@ -7,26 +7,26 @@ use std::sync::Arc;
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum Game {
     Canvas(Canvas),
-    CanvasBulk(Vec<Canvas>),
+    Guess(Guess),
     Players(Arc<BTreeMap<UserId, Player>>),
     Game(Arc<GameState>),
-    Guess(Arc<Guess>),
-    GuessBulk(Vec<Arc<Guess>>),
     Heartbeat,
+    CanvasBulk(Vec<Canvas>),
+    GuessBulk(Vec<Guess>),
 }
 
 #[test]
 fn game_size() {
-    assert_eq!(std::mem::size_of::<Game>(), 32);
+    assert_eq!(std::mem::size_of::<Game>(), 40);
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum GameReq {
-    Canvas { event: Canvas },
-    Choose { word: Arc<str> },
-    Guess { guess: Box<str> },
-    Join { lobby: Lobby, nick: Nickname },
-    Remove { user_id: UserId, epoch: Epoch },
+    Canvas(Canvas),
+    Choose(Arc<str>),
+    Guess(Arc<str>),
+    Join(Lobby, Nickname),
+    Remove(UserId, Epoch),
 }
 
 #[test]

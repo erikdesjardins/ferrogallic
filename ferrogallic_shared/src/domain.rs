@@ -103,13 +103,13 @@ impl fmt::Display for Epoch {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialOrd, Ord, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub enum Guess {
-    System(Box<str>),
-    Message(UserId, Box<str>),
+    System(Arc<str>),
+    Message(UserId, Arc<str>),
     NowChoosing(UserId),
     NowDrawing(UserId),
-    Guess(UserId, Box<str>),
+    Guess(UserId, Arc<str>),
     Correct(UserId),
     EarnedPoints(UserId, u32),
     TimeExpired(Arc<str>),

@@ -11,7 +11,7 @@ pub enum Msg {}
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub players: Arc<BTreeMap<UserId, Player>>,
-    pub guesses: Arc<Vec<Arc<Guess>>>,
+    pub guesses: Arc<Vec<Guess>>,
 }
 
 pub struct GuessArea {
@@ -66,12 +66,12 @@ mod guess {
     #[derive(Clone, Properties)]
     pub struct Props {
         pub players: Arc<BTreeMap<UserId, Player>>,
-        pub guess: Arc<Guess>,
+        pub guess: Guess,
     }
 
     impl PartialEq for Props {
         fn eq(&self, Self { players, guess }: &Self) -> bool {
-            Arc::ptr_eq(&self.players, players) && Arc::ptr_eq(&self.guess, guess)
+            Arc::ptr_eq(&self.players, players) && &self.guess == guess
         }
     }
 
@@ -104,7 +104,7 @@ mod guess {
                     .unwrap_or("<unknown>")
             };
 
-            match self.props.guess.as_ref() {
+            match &self.props.guess {
                 Guess::System(system) => html! {
                     <li>{"🖥️ "}{system}</li>
                 },

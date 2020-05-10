@@ -63,7 +63,7 @@ pub struct InGame {
     color: Color,
     players: Arc<BTreeMap<UserId, Player>>,
     game: Arc<GameState>,
-    guesses: Arc<Vec<Arc<Guess>>>,
+    guesses: Arc<Vec<Guess>>,
 }
 
 struct CanvasState {
@@ -109,10 +109,7 @@ impl Component for InGame {
             Msg::ConnStatus(status) => match status {
                 WebSocketStatus::Opened => {
                     if let Some(ws) = &mut self.active_ws {
-                        ws.send_api(&GameReq::Join {
-                            lobby: self.lobby.clone(),
-                            nick: self.nick.clone(),
-                        });
+                        ws.send_api(&GameReq::Join(self.lobby.clone(), self.nick.clone()));
                     }
                     false
                 }
@@ -162,21 +159,19 @@ impl Component for InGame {
             },
             Msg::RemovePlayer(user_id, epoch) => {
                 if let Some(ws) = &mut self.active_ws {
-                    ws.send_api(&GameReq::Remove { user_id, epoch });
+                    ws.send_api(&GameReq::Remove(user_id, epoch));
                 }
                 false
             }
             Msg::ChooseWord(word) => {
                 if let Some(ws) = &mut self.active_ws {
-                    ws.send_api(&GameReq::Choose { word });
+                    ws.send_api(&GameReq::Choose(word));
                 }
                 false
             }
             Msg::SendGuess(guess) => {
                 if let Some(ws) = &mut self.active_ws {
-                    ws.send_api(&GameReq::Guess {
-                        guess: guess.into_boxed_str(),
-                    });
+                    ws.send_api(&GameReq::Guess(Arc::from(guess)));
                 }
                 false
             }
@@ -235,7 +230,7 @@ impl Component for InGame {
                     self.render_to_virtual(event);
                     self.schedule_render_to_canvas();
                     if let Some(ws) = &mut self.active_ws {
-                        ws.send_api(&GameReq::Canvas { event });
+                        ws.send_api(&GameReq::Canvas(event));
                     }
                 }
                 false
@@ -245,7 +240,7 @@ impl Component for InGame {
                 self.render_to_virtual(event);
                 self.schedule_render_to_canvas();
                 if let Some(ws) = &mut self.active_ws {
-                    ws.send_api(&GameReq::Canvas { event });
+                    ws.send_api(&GameReq::Canvas(event));
                 }
                 false
             }

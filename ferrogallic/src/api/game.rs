@@ -39,7 +39,7 @@ pub async fn join_game(
     mut ws: TypedWebSocket<Game>,
 ) -> Result<(), Error> {
     let (lobby, nick) = match ws.next().await {
-        Some(Ok(GameReq::Join { lobby, nick })) => (lobby, nick),
+        Some(Ok(GameReq::Join(lobby, nick))) => (lobby, nick),
         Some(Ok(m)) => return Err(anyhow!("Initial message was not Join: {:?}", m)),
         Some(Err(e)) => return Err(e.context("Failed to receive initial message")),
         None => return Err(anyhow!("WS closed before initial message")),
@@ -164,7 +164,7 @@ enum Broadcast {
 
 #[test]
 fn broadcast_size() {
-    assert_eq!(std::mem::size_of::<Broadcast>(), 48);
+    assert_eq!(std::mem::size_of::<Broadcast>(), 56);
 }
 
 async fn run_game_loop(
@@ -270,11 +270,11 @@ async fn game_loop(
             }
             GameLoop::Message(user_id, epoch, req) => match players.read().get(&user_id) {
                 Some(player) if player.epoch == epoch => match req {
-                    GameReq::Canvas { event } => {
+                    GameReq::Canvas(event) => {
                         canvas_events.push(event);
                         tx_broadcast.send(Broadcast::Exclude(user_id, Game::Canvas(event)))?;
                     }
-                    GameReq::Choose { word } => match game_state.read().as_ref() {
+                    GameReq::Choose(word) => match game_state.read().as_ref() {
                         GameState::ChoosingWords { choosing, words }
                             if *choosing == user_id && words.contains(&word) =>
                         {
@@ -285,9 +285,9 @@ async fn game_loop(
                                 word,
                                 seconds_remaining: GUESS_SECONDS,
                             };
-                            tx_broadcast.send(Broadcast::Everyone(Game::Guess(Arc::new(
+                            tx_broadcast.send(Broadcast::Everyone(Game::Guess(
                                 Guess::NowDrawing(drawing),
-                            ))))?;
+                            )))?;
                             canvas_events.clear();
                             tx_broadcast.send(Broadcast::Everyone(Game::Canvas(Canvas::Clear)))?;
                         }
@@ -297,8 +297,8 @@ async fn game_loop(
                             tx_broadcast.send(Broadcast::Kill(user_id, epoch))?;
                         }
                     },
-                    GameReq::Guess { guess } => {
-                        let guess = Arc::new(match game_state.read().as_ref() {
+                    GameReq::Guess(guess) => {
+                        let guess = match game_state.read().as_ref() {
                             GameState::WaitingToStart { .. } => match guess.as_ref() {
                                 "start" => {
                                     if let GameState::WaitingToStart { starting } =
@@ -332,14 +332,11 @@ async fn game_loop(
                                     Guess::Guess(user_id, guess)
                                 }
                             }
-                        });
+                        };
                         guesses.push(guess.clone());
                         tx_broadcast.send(Broadcast::Everyone(Game::Guess(guess)))?;
                     }
-                    GameReq::Remove {
-                        user_id: remove_uid,
-                        epoch: remove_epoch,
-                    } => {
+                    GameReq::Remove(remove_uid, remove_epoch) => {
                         if let Entry::Occupied(entry) =
                             Arc::make_mut(players.write()).entry(remove_uid)
                         {
@@ -349,7 +346,7 @@ async fn game_loop(
                             }
                         }
                     }
-                    GameReq::Join { .. } => {
+                    GameReq::Join(..) => {
                         log::warn!("Lobby={} Player={} invalid: {:?}", lobby, player.nick, req);
                         tx_broadcast.send(Broadcast::Kill(user_id, epoch))?;
                     }
@@ -403,7 +400,7 @@ async fn game_loop(
                             .all(|uid| drawing == uid || correct_scores.contains_key(uid))
                     {
                         if *seconds_remaining == 0 {
-                            let guess = Arc::new(Guess::TimeExpired(word.clone()));
+                            let guess = Guess::TimeExpired(word.clone());
                             guesses.push(guess.clone());
                             tx_broadcast.send(Broadcast::Everyone(Game::Guess(guess)))?;
                         }
@@ -412,7 +409,7 @@ async fn game_loop(
                             players
                                 .entry(user_id)
                                 .and_modify(|player| player.score += score);
-                            let guess = Arc::new(Guess::EarnedPoints(user_id, score));
+                            let guess = Guess::EarnedPoints(user_id, score);
                             guesses.push(guess.clone());
                             tx_broadcast.send(Broadcast::Everyone(Game::Guess(guess)))?;
                         }
@@ -449,10 +446,11 @@ async fn game_loop(
                 };
                 let words = words::GAME
                     .choose_multiple(&mut thread_rng(), NUMBER_OF_WORDS_TO_CHOOSE)
-                    .map(|&s| s.into())
+                    .copied()
+                    .map(Arc::from)
                     .collect();
                 *Arc::make_mut(game_state.write()) = GameState::ChoosingWords { choosing, words };
-                let guess = Arc::new(Guess::NowChoosing(choosing));
+                let guess = Guess::NowChoosing(choosing);
                 guesses.push(guess.clone());
                 tx_broadcast.send(Broadcast::Everyone(Game::Guess(guess)))?;
             }
