@@ -278,12 +278,16 @@ async fn game_loop(
                         GameState::ChoosingWords { choosing, words }
                             if *choosing == user_id && words.contains(&word) =>
                         {
+                            let drawing = *choosing;
                             *Arc::make_mut(game_state.write()) = GameState::Drawing {
-                                drawing: *choosing,
+                                drawing,
                                 correct_scores: Default::default(),
                                 word,
                                 seconds_remaining: GUESS_SECONDS,
                             };
+                            tx_broadcast.send(Broadcast::Everyone(Game::Guess(Arc::new(
+                                Guess::NowDrawing(drawing),
+                            ))))?;
                             canvas_events.clear();
                             tx_broadcast.send(Broadcast::Everyone(Game::Canvas(Canvas::Clear)))?;
                         }

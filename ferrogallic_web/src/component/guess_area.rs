@@ -114,6 +114,9 @@ mod guess {
                 Guess::NowChoosing(user_id) => html! {
                     <li>{"✨ "}{format_user(*user_id)}{" is choosing a word."}</li>
                 },
+                Guess::NowDrawing(user_id) => html! {
+                    <li>{"🖌️ "}{format_user(*user_id)}{" is drawing!"}</li>
+                },
                 Guess::Guess(user_id, guess) => html! {
                     <li>{"❌ "}{format_user(*user_id)}{" guessed '"}{guess}{"'."}</li>
                 },

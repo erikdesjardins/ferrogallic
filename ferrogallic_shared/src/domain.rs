@@ -108,6 +108,7 @@ pub enum Guess {
     System(Box<str>),
     Message(UserId, Box<str>),
     NowChoosing(UserId),
+    NowDrawing(UserId),
     Guess(UserId, Box<str>),
     Correct(UserId),
     EarnedPoints(UserId, u32),
