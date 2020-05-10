@@ -34,6 +34,7 @@ pub async fn run(addr: SocketAddr) {
                 "<html>",
                 "<head>",
                 "<meta name=robots content='noindex, nofollow'/>",
+                "<meta name=viewport content='width=device-width, initial-scale=0.5, user-scalable=no'>",
                 "<link rel=stylesheet href='/static/main.css'/>",
                 "</head>",
                 "<body><script type=module src='/static/index.js'></script></body>",
