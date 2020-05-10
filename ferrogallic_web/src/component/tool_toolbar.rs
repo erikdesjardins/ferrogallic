@@ -45,7 +45,8 @@ impl Component for ToolToolbar {
                     Tool::Pen(width) => (
                         "⚫",
                         match width {
-                            LineWidth::Small => "font-size: 4px",
+                            LineWidth::Small => "font-size: 2px",
+                            LineWidth::Normal => "font-size: 4px",
                             LineWidth::Medium => "font-size: 6px",
                             LineWidth::Large => "font-size: 10px",
                             LineWidth::Extra => "font-size: 14px",

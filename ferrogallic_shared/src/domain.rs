@@ -117,6 +117,7 @@ pub enum Guess {
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub enum LineWidth {
     Small,
+    Normal,
     Medium,
     Large,
     Extra,
@@ -124,16 +125,19 @@ pub enum LineWidth {
 
 impl Default for LineWidth {
     fn default() -> Self {
-        Self::Small
+        Self::Normal
     }
 }
 
 impl LineWidth {
-    pub const ALL: [Self; 4] = [Self::Small, Self::Medium, Self::Large, Self::Extra];
-
     pub fn scanlines(self) -> &'static [u16] {
         match self {
             Self::Small => {
+                // 0.5px radius
+                // + 1
+                &[1]
+            }
+            Self::Normal => {
                 // 1px radius
                 // +++
                 // +++ 3
@@ -183,8 +187,9 @@ impl Default for Tool {
 }
 
 impl Tool {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Pen(LineWidth::Small),
+        Self::Pen(LineWidth::Normal),
         Self::Pen(LineWidth::Medium),
         Self::Pen(LineWidth::Large),
         Self::Pen(LineWidth::Extra),
