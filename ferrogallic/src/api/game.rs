@@ -18,7 +18,7 @@ use std::time::Duration;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::task::spawn;
-use tokio::time::delay_for;
+use tokio::time::interval;
 
 #[derive(Default)]
 pub struct ActiveLobbies {
@@ -221,8 +221,9 @@ async fn game_loop(
         let lobby = lobby.clone();
         let mut tx_self = tx_self.clone();
         async move {
+            let mut interval = interval(Duration::from_secs(1));
             loop {
-                delay_for(Duration::from_secs(1)).await;
+                interval.tick().await;
                 if let Err(e) = tx_self.send(GameLoop::OneSecondElapsed).await {
                     log::info!("Lobby={} stopping timer: {}", lobby, e);
                     return;
