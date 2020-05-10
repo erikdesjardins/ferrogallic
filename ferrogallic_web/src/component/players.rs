@@ -4,7 +4,7 @@ use ferrogallic_shared::api::game::{Player, PlayerStatus};
 use ferrogallic_shared::domain::UserId;
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
+use yew::{html, Component, ComponentLink, Html, MouseEvent, Properties, ShouldRender};
 
 pub enum Msg {}
 
@@ -49,9 +49,10 @@ impl Component for Players {
                     PlayerStatus::Disconnected => {
                         let user_id = player.nick.user_id();
                         let epoch = player.epoch;
-                        let on_remove = self
-                            .game_link
-                            .callback(move |_| page::in_game::Msg::RemovePlayer(user_id, epoch));
+                        let on_remove = self.game_link.callback(move |e: MouseEvent| {
+                            e.prevent_default();
+                            page::in_game::Msg::RemovePlayer(user_id, epoch)
+                        });
                         html! {
                             <>
                                 {"disconnected "}

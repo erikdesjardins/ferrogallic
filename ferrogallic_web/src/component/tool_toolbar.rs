@@ -1,6 +1,6 @@
 use crate::page;
 use crate::util::{NeqAssign, StrExt};
-use ferrogallic_shared::domain::Tool;
+use ferrogallic_shared::domain::{LineWidth, Tool};
 use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
 
 pub enum Msg {}
@@ -42,7 +42,15 @@ impl Component for ToolToolbar {
                     .callback(move |_| page::in_game::Msg::SetTool(tool));
                 let active = "active".class_if(tool == self.tool);
                 let (text, style) = match tool {
-                    Tool::Pen(width) => ("⚫", width.css_icon_style()),
+                    Tool::Pen(width) => (
+                        "⚫",
+                        match width {
+                            LineWidth::Small => "font-size: 4px",
+                            LineWidth::Medium => "font-size: 6px",
+                            LineWidth::Large => "font-size: 10px",
+                            LineWidth::Extra => "font-size: 14px",
+                        },
+                    ),
                     Tool::Fill => ("▧", "font-size: 28px"),
                 };
                 html! {

@@ -41,8 +41,12 @@ impl Component for ColorToolbar {
                     .game_link
                     .callback(move |_| page::in_game::Msg::SetColor(color));
                 let active = "active".class_if(color == self.color);
+                let style = format!(
+                    "background-color: rgb({}, {}, {})",
+                    color.r, color.g, color.b
+                );
                 html! {
-                    <button onclick=onclick class=("color-button", active) style=format!("background-color: {}", color.css())/>
+                    <button onclick=onclick class=("color-button", active) style=style/>
                 }
             })
             .collect::<Html>();

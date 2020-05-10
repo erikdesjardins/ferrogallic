@@ -54,7 +54,7 @@ impl fmt::Display for Nickname {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Lobby(Arc<str>);
 
 impl Lobby {
@@ -168,15 +168,6 @@ impl LineWidth {
             }
         }
     }
-
-    pub fn css_icon_style(self) -> &'static str {
-        match self {
-            Self::Small => "font-size: 4px",
-            Self::Medium => "font-size: 6px",
-            Self::Large => "font-size: 10px",
-            Self::Extra => "font-size: 14px",
-        }
-    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
@@ -204,9 +195,9 @@ impl Tool {
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
 #[repr(C)]
 pub struct Color {
-    r: u8,
-    g: u8,
-    b: u8,
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
     a: u8,
 }
 
@@ -253,10 +244,6 @@ impl Color {
 
     pub const fn new(r: u8, g: u8, b: u8) -> Self {
         Self { a: 0xff, r, g, b }
-    }
-
-    pub fn css(self) -> String {
-        format!("rgb({},{},{})", self.r, self.g, self.b)
     }
 }
 
