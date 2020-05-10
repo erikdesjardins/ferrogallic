@@ -6,7 +6,7 @@ use crate::util::NeqAssign;
 use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::game::{Canvas, Game, GameReq, GameState, Player};
 use ferrogallic_shared::config::{CANVAS_HEIGHT, CANVAS_WIDTH};
-use ferrogallic_shared::domain::{Color, Guess, Lobby, Nickname, Tool, UserId};
+use ferrogallic_shared::domain::{Color, Epoch, Guess, Lobby, Nickname, Tool, UserId};
 use gloo::events::{EventListener, EventListenerOptions};
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -21,6 +21,7 @@ use yew::{
 pub enum Msg {
     ConnStatus(WebSocketStatus),
     Message(Game),
+    RemovePlayer(UserId, Epoch),
     ChooseWord(Arc<str>),
     SendGuess(String),
     Pointer(PointerAction),
@@ -157,6 +158,12 @@ impl Component for InGame {
                 }
                 Game::Heartbeat => false,
             },
+            Msg::RemovePlayer(user_id, epoch) => {
+                if let Some(ws) = &mut self.active_ws {
+                    ws.send_api(&GameReq::Remove { user_id, epoch });
+                }
+                false
+            }
             Msg::ChooseWord(word) => {
                 if let Some(ws) = &mut self.active_ws {
                     ws.send_api(&GameReq::Choose { word });
@@ -355,7 +362,7 @@ impl Component for InGame {
                 </div>
                 <article class="window-body" style="display: flex">
                     <section style="flex: 1; height: 753px">
-                        <component::Players players=self.players.clone()/>
+                        <component::Players game_link=self.link.clone() players=self.players.clone()/>
                     </section>
                     <section style="margin: 0 8px; position: relative">
                         <fieldset style="padding-block-start: 1px; padding-block-end: 0px; padding-inline-start: 1px; padding-inline-end: 1px;">

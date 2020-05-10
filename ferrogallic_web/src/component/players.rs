@@ -1,3 +1,4 @@
+use crate::page;
 use crate::util::NeqAssign;
 use ferrogallic_shared::api::game::{Player, PlayerStatus};
 use ferrogallic_shared::domain::UserId;
@@ -7,13 +8,15 @@ use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
 
 pub enum Msg {}
 
-#[derive(Clone, PartialEq, Properties)]
+#[derive(Clone, Properties)]
 pub struct Props {
+    pub game_link: ComponentLink<page::InGame>,
     pub players: Arc<BTreeMap<UserId, Player>>,
 }
 
 pub struct Players {
-    props: Props,
+    game_link: ComponentLink<page::InGame>,
+    players: Arc<BTreeMap<UserId, Player>>,
 }
 
 impl Component for Players {
@@ -21,32 +24,48 @@ impl Component for Players {
     type Properties = Props;
 
     fn create(props: Self::Properties, _: ComponentLink<Self>) -> Self {
-        Self { props }
+        Self {
+            game_link: props.game_link,
+            players: props.players,
+        }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {}
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        self.props.neq_assign(props)
+    fn change(&mut self, Props { game_link, players }: Self::Properties) -> ShouldRender {
+        self.game_link = game_link;
+        self.players.neq_assign(players)
     }
 
     fn view(&self) -> Html {
         let players = self
-            .props
             .players
             .values()
             .map(|player| {
+                let status = match player.status {
+                    PlayerStatus::Connected => html! { "connected" },
+                    PlayerStatus::Disconnected => {
+                        let user_id = player.nick.user_id();
+                        let epoch = player.epoch;
+                        let on_remove = self
+                            .game_link
+                            .callback(move |_| page::in_game::Msg::RemovePlayer(user_id, epoch));
+                        html! {
+                            <>
+                                {"disconnected "}
+                                <a href="#" onclick=on_remove>{"(remove)"}</a>
+                            </>
+                        }
+                    }
+                };
                 html! {
                     <li>
                         {&player.nick}
                         <ul>
                             <li>{"Score: "}{player.score}</li>
-                            <li>{"Status: "}{match player.status {
-                                PlayerStatus::Connected => "connected",
-                                PlayerStatus::Disconnected => "disconnected",
-                            }}</li>
+                            <li>{"Status: "}{status}</li>
                         </ul>
                     </li>
                 }

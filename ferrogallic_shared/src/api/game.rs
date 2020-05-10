@@ -26,6 +26,7 @@ pub enum GameReq {
     Choose { word: Arc<str> },
     Guess { guess: Box<str> },
     Join { lobby: Lobby, nick: Nickname },
+    Remove { user_id: UserId, epoch: Epoch },
 }
 
 #[test]
