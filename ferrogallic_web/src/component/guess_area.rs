@@ -3,7 +3,8 @@ use ferrogallic_shared::api::game::Player;
 use ferrogallic_shared::domain::{Guess, UserId};
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
+use web_sys::Element;
+use yew::{html, Component, ComponentLink, Html, NodeRef, Properties, ShouldRender};
 
 pub enum Msg {}
 
@@ -15,6 +16,7 @@ pub struct Props {
 
 pub struct GuessArea {
     props: Props,
+    area_ref: NodeRef,
 }
 
 impl Component for GuessArea {
@@ -22,7 +24,10 @@ impl Component for GuessArea {
     type Properties = Props;
 
     fn create(props: Self::Properties, _: ComponentLink<Self>) -> Self {
-        Self { props }
+        Self {
+            props,
+            area_ref: Default::default(),
+        }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
@@ -31,6 +36,12 @@ impl Component for GuessArea {
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
         self.props.neq_assign(props)
+    }
+
+    fn rendered(&mut self, _first_render: bool) {
+        if let Some(area) = self.area_ref.cast::<Element>() {
+            area.set_scroll_top(i32::MAX);
+        }
     }
 
     fn view(&self) -> Html {
@@ -70,7 +81,7 @@ impl Component for GuessArea {
             })
             .collect::<Html>();
         html! {
-            <ul class="tree-view" style="height: 100%; overflow-y: scroll">{guesses}</ul>
+            <ul ref=self.area_ref.clone() class="tree-view" style="height: 100%; overflow-y: scroll">{guesses}</ul>
         }
     }
 }
