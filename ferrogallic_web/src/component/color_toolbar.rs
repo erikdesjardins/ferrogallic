@@ -1,5 +1,5 @@
 use crate::page;
-use crate::util::NeqAssign;
+use crate::util::{NeqAssign, StrExt};
 use ferrogallic_shared::domain::Color;
 use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
 
@@ -34,23 +34,23 @@ impl Component for ColorToolbar {
     }
 
     fn view(&self) -> Html {
-        Color::ALL
+        let colors = Color::ALL
             .iter()
             .map(|&color| {
                 let onclick = self
                     .game_link
                     .callback(move |_| page::in_game::Msg::SetColor(color));
-                let class = if color == self.color {
-                    "selected"
-                } else {
-                    ""
-                };
+                let active = "active".class_if(color == self.color);
                 html! {
-                    <button onclick=onclick class=class style=format!("background-color: {}", color.css())>
-                        {"\u{A0}" /* nbsp */}
-                    </button>
+                    <button onclick=onclick class=("color-button", active) style=format!("background-color: {}", color.css())/>
                 }
             })
-            .collect()
+            .collect::<Html>();
+
+        html! {
+            <div class="color-buttons">
+                {colors}
+            </div>
+        }
     }
 }

@@ -3,8 +3,8 @@ use crate::words;
 use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::game::{Canvas, Game, GameReq, GameState, Player, PlayerStatus};
 use ferrogallic_shared::config::{
-    GUESS_SECONDS, NUMBER_OF_WORDS_TO_CHOOSE, PERFECT_GUESS_SCORE, REMOVE_DISCONNECTED_PLAYERS,
-    WS_RX_BUFFER_SHARED, WS_TX_BUFFER_BROADCAST,
+    GUESS_SECONDS, NUMBER_OF_WORDS_TO_CHOOSE, PERFECT_GUESS_SCORE, WS_RX_BUFFER_SHARED,
+    WS_TX_BUFFER_BROADCAST,
 };
 use ferrogallic_shared::domain::{Epoch, Guess, Lobby, Nickname, UserId};
 use futures::{SinkExt, StreamExt};
@@ -139,7 +139,6 @@ enum GameLoop {
     Connect(UserId, Epoch, Nickname, oneshot::Sender<Onboarding>),
     Message(UserId, Epoch, GameReq),
     Disconnect(UserId, Epoch),
-    Remove(UserId, Epoch),
     OneSecondElapsed,
 }
 
@@ -320,6 +319,19 @@ async fn game_loop(
                         guesses.push(guess.clone());
                         tx_broadcast.send(Broadcast::Everyone(Game::Guess(guess)))?;
                     }
+                    GameReq::Remove {
+                        user_id: remove_uid,
+                        epoch: remove_epoch,
+                    } => {
+                        if let Entry::Occupied(entry) =
+                            Arc::make_mut(players.write()).entry(remove_uid)
+                        {
+                            if entry.get().epoch == remove_epoch {
+                                let removed = entry.remove();
+                                log::info!("Lobby={} Player={} removed", lobby, removed.nick);
+                            }
+                        }
+                    }
                     GameReq::Join { .. } => {
                         log::warn!("Lobby={} Player={} invalid: {:?}", lobby, player.nick, req);
                         tx_broadcast.send(Broadcast::Kill(user_id, epoch))?;
@@ -333,21 +345,6 @@ async fn game_loop(
                 if let Some(player) = Arc::make_mut(players.write()).get_mut(&user_id) {
                     if player.epoch == epoch {
                         player.status = PlayerStatus::Disconnected;
-                        spawn({
-                            let mut tx_self = tx_self.clone();
-                            async move {
-                                delay_for(REMOVE_DISCONNECTED_PLAYERS).await;
-                                let _ = tx_self.send(GameLoop::Remove(user_id, epoch)).await;
-                            }
-                        });
-                    }
-                }
-            }
-            GameLoop::Remove(user_id, epoch) => {
-                if let Entry::Occupied(entry) = Arc::make_mut(players.write()).entry(user_id) {
-                    if entry.get().epoch == epoch {
-                        let player = entry.remove();
-                        log::warn!("Lobby={} Player={} removed", lobby, player.nick);
                     }
                 }
             }
@@ -459,7 +456,10 @@ fn guesser_score(seconds_remaining: u8) -> u32 {
 }
 
 fn drawer_score(scores: impl Iterator<Item = u32>, player_count: u32) -> u32 {
-    scores.sum::<u32>() / (player_count - 1)
+    scores
+        .sum::<u32>()
+        .checked_div(player_count - 1)
+        .unwrap_or(0)
 }
 
 struct Invalidate<T> {

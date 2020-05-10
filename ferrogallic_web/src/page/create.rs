@@ -8,7 +8,7 @@ use yew::agent::{Dispatched, Dispatcher};
 use yew::services::fetch::{FetchService, FetchTask};
 use yew::{html, Component, ComponentLink, Event, Html, InputData, Properties, ShouldRender};
 use yew_router::agent::{RouteAgent, RouteRequest};
-use yew_router::components::RouterAnchor;
+use yew_router::components::RouterButton;
 use yew_router::route::Route;
 
 pub enum Msg {
@@ -43,9 +43,9 @@ impl Component for Create {
             app_link,
             router: RouteAgent::dispatcher(),
             fetch_service: FetchService::new(),
-            custom_lobby_name: Lobby::new("".to_string()),
+            custom_lobby_name: Lobby::new(String::new()),
             fetching_generated_lobby_name: None,
-            generated_lobby_name: Lobby::new("".to_string()),
+            generated_lobby_name: Lobby::new(String::new()),
         }
     }
 
@@ -106,34 +106,51 @@ impl Component for Create {
             lobby: self.generated_lobby_name.clone(),
         };
         html! {
-            <>
-                <fieldset>
-                    <legend>{"Join Game"}</legend>
-                    <form onsubmit=on_join_game>
-                        <input
-                            type="text"
-                            placeholder="Lobby"
-                            oninput=on_change_custom_lobby
-                            value=&self.custom_lobby_name
-                        />
-                        <input
-                            type="submit"
-                            value="Go"
-                            disabled=self.custom_lobby_name.is_empty()
-                        />
-                    </form>
-                </fieldset>
-                <fieldset>
-                    <legend>{"New Game"}</legend>
-                    <RouterAnchor<AppRoute> route=generated_lobby>
-                        {if self.generated_lobby_name.is_empty() {
-                            "..."
-                        } else {
-                            &self.generated_lobby_name
-                        }}
-                    </RouterAnchor<AppRoute>>
-                </fieldset>
-            </>
+            <main style="display: flex; justify-content: space-evenly; align-items: flex-start">
+                <div class="window" style="min-width: 300px">
+                    <div class="title-bar">
+                        <div class="title-bar-text">{"Join Existing Game"}</div>
+                    </div>
+                    <article class="window-body">
+                        <form onsubmit=on_join_game>
+                            <p>
+                                <input
+                                    type="text"
+                                    placeholder="Lobby name"
+                                    oninput=on_change_custom_lobby
+                                    value=&self.custom_lobby_name
+                                    style="width: 100%"
+                                />
+                            </p>
+                            <section class="field-row" style="justify-content: flex-end">
+                                <button disabled=self.custom_lobby_name.is_empty()>
+                                    {"Join"}
+                                </button>
+                            </section>
+                        </form>
+                    </article>
+                </div>
+                <div class="window" style="min-width: 300px">
+                    <div class="title-bar">
+                        <div class="title-bar-text">{"Create New Game"}</div>
+                    </div>
+                    <article class="window-body">
+                        <p>
+                            {"Lobby name: "}
+                            {if self.generated_lobby_name.is_empty() {
+                                "..."
+                            } else {
+                                &self.generated_lobby_name
+                            }}
+                        </p>
+                        <section class="field-row" style="justify-content: flex-end">
+                            <RouterButton<AppRoute> route=generated_lobby>
+                                {"Create"}
+                            </RouterButton<AppRoute>>
+                        </section>
+                    </article>
+                </div>
+            </main>
         }
     }
 }

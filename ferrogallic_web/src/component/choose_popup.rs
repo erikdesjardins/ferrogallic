@@ -11,12 +11,12 @@ pub struct Props {
     pub words: Arc<[Arc<str>]>,
 }
 
-pub struct ChooseToolbar {
+pub struct ChoosePopup {
     game_link: ComponentLink<page::InGame>,
     words: Arc<[Arc<str>]>,
 }
 
-impl Component for ChooseToolbar {
+impl Component for ChoosePopup {
     type Message = Msg;
     type Properties = Props;
 
@@ -34,7 +34,8 @@ impl Component for ChooseToolbar {
     }
 
     fn view(&self) -> Html {
-        self.words
+        let words = self
+            .words
             .iter()
             .map(|word| {
                 let onclick = self.game_link.callback({
@@ -45,6 +46,21 @@ impl Component for ChooseToolbar {
                     <button onclick=onclick>{word}</button>
                 }
             })
-            .collect()
+            .collect::<Html>();
+
+        html! {
+            <dialog open=true class="hatched-background">
+                <div class="window">
+                    <div class="title-bar">
+                        <div class="title-bar-text">{"Choose Word"}</div>
+                    </div>
+                    <div class="window-body">
+                        <section class="field-row" style="justify-content: flex-end">
+                            {words}
+                        </section>
+                    </div>
+                </div>
+            </dialog>
+        }
     }
 }
