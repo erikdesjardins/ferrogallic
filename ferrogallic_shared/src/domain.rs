@@ -103,7 +103,7 @@ impl fmt::Display for Epoch {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialOrd, Ord, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Serialize, PartialOrd, Ord, PartialEq, Eq)]
 pub enum Guess {
     System(Box<str>),
     Message(UserId, Box<str>),
@@ -112,7 +112,7 @@ pub enum Guess {
     Guess(UserId, Box<str>),
     Correct(UserId),
     EarnedPoints(UserId, u32),
-    TimeExpired,
+    TimeExpired(Arc<str>),
 }
 
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]

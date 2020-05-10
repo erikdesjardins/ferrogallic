@@ -126,8 +126,8 @@ mod guess {
                 Guess::EarnedPoints(user_id, points) => html! {
                     <li>{"💵 "}{format_user(*user_id)}{" earned "}{points}{" points."}</li>
                 },
-                Guess::TimeExpired => html! {
-                    <li>{"⏰ Time's up!"}</li>
+                Guess::TimeExpired(word) => html! {
+                    <li>{"⏰ Time's up! The word was '"}{word}{"'."}</li>
                 },
             }
         }

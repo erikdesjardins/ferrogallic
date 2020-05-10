@@ -393,7 +393,7 @@ async fn game_loop(
                 GameState::Drawing {
                     drawing,
                     correct_scores,
-                    word: _,
+                    word,
                     seconds_remaining,
                 } => {
                     if *seconds_remaining == 0
@@ -403,7 +403,7 @@ async fn game_loop(
                             .all(|uid| drawing == uid || correct_scores.contains_key(uid))
                     {
                         if *seconds_remaining == 0 {
-                            let guess = Arc::new(Guess::TimeExpired);
+                            let guess = Arc::new(Guess::TimeExpired(word.clone()));
                             guesses.push(guess.clone());
                             tx_broadcast.send(Broadcast::Everyone(Game::Guess(guess)))?;
                         }
