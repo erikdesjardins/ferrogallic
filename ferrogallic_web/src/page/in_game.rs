@@ -375,7 +375,7 @@ impl Component for InGame {
                     }}</div>
                 </div>
                 <article class="window-body" style="display: flex">
-                    <section style="flex: 1; height: 755px">
+                    <section style="flex: 1; height: 804px">
                         <component::Players game_link=self.link.clone() players=self.players.clone()/>
                     </section>
                     <section style="margin: 0 8px; position: relative">
@@ -406,7 +406,7 @@ impl Component for InGame {
                             None => html! {},
                         }}
                     </section>
-                    <section style="flex: 1; height: 755px; display: flex; flex-direction: column">
+                    <section style="flex: 1; height: 804px; display: flex; flex-direction: column">
                         <div style="flex: 1; min-height: 0">
                             <component::GuessArea players=self.players.clone() guesses=self.guesses.clone()/>
                         </div>
