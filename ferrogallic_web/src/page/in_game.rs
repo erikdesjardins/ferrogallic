@@ -339,7 +339,6 @@ impl Component for InGame {
 
         let mut can_draw = false;
         let mut choose_words = None;
-        let mut timer = None;
         let mut guess_template = None;
         let _: () = match self.game.as_ref() {
             GameState::WaitingToStart { .. } => {
@@ -354,9 +353,8 @@ impl Component for InGame {
                 drawing,
                 correct_scores: _,
                 word,
-                seconds_remaining,
+                seconds_remaining: _,
             } => {
-                timer = Some(*seconds_remaining);
                 if *drawing == self.nick.user_id() {
                     can_draw = true;
                     guess_template = Some(component::guess_input::Template::reveal_all(&word));
@@ -369,10 +367,7 @@ impl Component for InGame {
         html! {
             <main class="window" style="max-width: 1500px; margin: auto">
                 <div class="title-bar">
-                    <div class="title-bar-text">{"In Game - "}{&self.lobby}{match timer {
-                        Some(seconds_remaining) => html! { <>{" ("}{seconds_remaining}{"s)"}</> },
-                        None => html! {},
-                    }}</div>
+                    <div class="title-bar-text">{"In Game - "}{&self.lobby}</div>
                 </div>
                 <article class="window-body" style="display: flex">
                     <section style="flex: 1; height: 804px">

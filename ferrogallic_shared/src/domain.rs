@@ -112,6 +112,7 @@ pub enum Guess {
     Guess(UserId, Arc<str>),
     Correct(UserId),
     EarnedPoints(UserId, u32),
+    SecondsLeft(u8),
     TimeExpired(Arc<str>),
 }
 

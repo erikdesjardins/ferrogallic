@@ -3,8 +3,8 @@ use crate::words;
 use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::game::{Canvas, Game, GameReq, GameState, Player, PlayerStatus};
 use ferrogallic_shared::config::{
-    GUESS_SECONDS, NUMBER_OF_WORDS_TO_CHOOSE, PERFECT_GUESS_SCORE, WS_RX_BUFFER_SHARED,
-    WS_TX_BUFFER_BROADCAST,
+    GUESS_SECONDS, NOTIFY_TIME_REMAINING_AT, NUMBER_OF_WORDS_TO_CHOOSE, PERFECT_GUESS_SCORE,
+    TIMER_TICK_SECONDS, WS_RX_BUFFER_SHARED, WS_TX_BUFFER_BROADCAST,
 };
 use ferrogallic_shared::domain::{Epoch, Guess, Lobby, Nickname, UserId};
 use futures::{SinkExt, StreamExt};
@@ -152,7 +152,7 @@ enum GameLoop {
     Connect(UserId, Epoch, Nickname, oneshot::Sender<Onboarding>),
     Message(UserId, Epoch, GameReq),
     Disconnect(UserId, Epoch),
-    OneSecondElapsed,
+    SecondsElapsed(u8),
 }
 
 #[derive(Debug, Clone)]
@@ -172,7 +172,27 @@ async fn run_game_loop(
     tx_self: mpsc::Sender<GameLoop>,
     rx: mpsc::Receiver<GameLoop>,
 ) {
-    match game_loop(&lobby, tx_self, rx).await {
+    log::info!("Lobby={} starting", lobby);
+
+    spawn({
+        let lobby = lobby.clone();
+        let mut tx_self_sending_and_receiving_on_same_task_can_deadlock = tx_self;
+        async move {
+            let mut interval = interval(Duration::from_secs(u64::from(TIMER_TICK_SECONDS)));
+            loop {
+                interval.tick().await;
+                if let Err(e) = tx_self_sending_and_receiving_on_same_task_can_deadlock
+                    .send(GameLoop::SecondsElapsed(TIMER_TICK_SECONDS))
+                    .await
+                {
+                    log::info!("Lobby={} stopping timer: {}", lobby, e);
+                    return;
+                }
+            }
+        }
+    });
+
+    match game_loop(&lobby, rx).await {
         Ok(()) => log::info!("Lobby={} shutdown, no new connections", lobby),
         Err(e) => match e {
             GameLoopError::NoPlayers => {
@@ -203,34 +223,13 @@ enum Transition {
     ChoosingWords { previously_drawing: Option<UserId> },
 }
 
-async fn game_loop(
-    lobby: &Lobby,
-    tx_self: mpsc::Sender<GameLoop>,
-    mut rx: mpsc::Receiver<GameLoop>,
-) -> Result<(), GameLoopError> {
-    log::info!("Lobby={} starting", lobby);
-
+async fn game_loop(lobby: &Lobby, mut rx: mpsc::Receiver<GameLoop>) -> Result<(), GameLoopError> {
     let (tx_broadcast, _) = broadcast::channel(WS_TX_BUFFER_BROADCAST);
 
     let mut players = Invalidate::new(Arc::new(BTreeMap::new()));
     let mut game_state = Invalidate::new(Arc::new(GameState::default()));
     let mut canvas_events = Vec::new();
     let mut guesses = Vec::new();
-
-    spawn({
-        let lobby = lobby.clone();
-        let mut tx_self = tx_self.clone();
-        async move {
-            let mut interval = interval(Duration::from_secs(1));
-            loop {
-                interval.tick().await;
-                if let Err(e) = tx_self.send(GameLoop::OneSecondElapsed).await {
-                    log::info!("Lobby={} stopping timer: {}", lobby, e);
-                    return;
-                }
-            }
-        }
-    });
 
     loop {
         let msg = match rx.recv().await {
@@ -363,7 +362,7 @@ async fn game_loop(
                     }
                 }
             }
-            GameLoop::OneSecondElapsed => match game_state.read().as_ref() {
+            GameLoop::SecondsElapsed(seconds) => match game_state.read().as_ref() {
                 GameState::WaitingToStart { .. } | GameState::ChoosingWords { .. } => {
                     tx_broadcast.send(Broadcast::Everyone(Game::Heartbeat))?;
                 }
@@ -372,7 +371,12 @@ async fn game_loop(
                         seconds_remaining, ..
                     } = Arc::make_mut(game_state.write())
                     {
-                        *seconds_remaining = seconds_remaining.saturating_sub(1);
+                        *seconds_remaining = seconds_remaining.saturating_sub(seconds);
+                        if NOTIFY_TIME_REMAINING_AT.contains(seconds_remaining) {
+                            tx_broadcast.send(Broadcast::Everyone(Game::Guess(
+                                Guess::SecondsLeft(*seconds_remaining),
+                            )))?;
+                        }
                     }
                 }
             },
