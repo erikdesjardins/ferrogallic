@@ -361,11 +361,11 @@ impl Component for InGame {
                     }}</div>
                 </div>
                 <article class="window-body" style="display: flex">
-                    <section style="flex: 1; height: 753px">
+                    <section style="flex: 1; height: 755px">
                         <component::Players game_link=self.link.clone() players=self.players.clone()/>
                     </section>
                     <section style="margin: 0 8px; position: relative">
-                        <fieldset style="padding-block-start: 1px; padding-block-end: 0px; padding-inline-start: 1px; padding-inline-end: 1px;">
+                        <fieldset style="padding-block-start: 2px; padding-block-end: 0px; padding-inline-start: 2px; padding-inline-end: 2px;">
                             <canvas
                                 ref=self.canvas_ref.clone()
                                 style=if can_draw { "" } else { "pointer-events: none" }
@@ -392,7 +392,7 @@ impl Component for InGame {
                             None => html! {},
                         }}
                     </section>
-                    <section style="flex: 1; height: 753px; display: flex; flex-direction: column">
+                    <section style="flex: 1; height: 755px; display: flex; flex-direction: column">
                         <div style="flex: 1; min-height: 0">
                             <component::GuessArea players=self.players.clone() guesses=self.guesses.clone()/>
                         </div>
