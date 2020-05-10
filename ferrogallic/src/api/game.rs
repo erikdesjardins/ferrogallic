@@ -22,7 +22,16 @@ use tokio::time::delay_for;
 
 #[derive(Default)]
 pub struct ActiveLobbies {
-    tx_lobby: Mutex<HashMap<Lobby, mpsc::Sender<GameLoop>>>,
+    tx_lobby: Mutex<HashMap<CaseInsensitiveLobby, mpsc::Sender<GameLoop>>>,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+struct CaseInsensitiveLobby(Box<str>);
+
+impl CaseInsensitiveLobby {
+    fn new(lobby: &Lobby) -> Self {
+        Self(lobby.to_ascii_lowercase().into_boxed_str())
+    }
 }
 
 pub async fn join_game(
@@ -43,7 +52,7 @@ pub async fn join_game(
             .tx_lobby
             .lock()
             .await
-            .entry(lobby.clone())
+            .entry(CaseInsensitiveLobby::new(&lobby))
             .or_insert_with(|| {
                 let (tx, rx) = mpsc::channel(WS_RX_BUFFER_SHARED);
                 spawn(run_game_loop(lobby.clone(), tx.clone(), rx));
@@ -60,7 +69,11 @@ pub async fn join_game(
             Ok(()) => break (tx_lobby, rx_onboard),
             Err(mpsc::error::SendError(_)) => {
                 log::warn!("Player={} Lobby={} was shutdown, restart", nick, lobby);
-                state.tx_lobby.lock().await.remove(&lobby);
+                state
+                    .tx_lobby
+                    .lock()
+                    .await
+                    .remove(&CaseInsensitiveLobby::new(&lobby));
             }
         }
     };

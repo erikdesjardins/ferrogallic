@@ -54,7 +54,7 @@ impl fmt::Display for Nickname {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Lobby(Arc<str>);
 
 impl Lobby {
