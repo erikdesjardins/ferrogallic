@@ -10,10 +10,11 @@ use ferrogallic_shared::domain::{Color, Epoch, Guess, Lobby, Nickname, Tool, Use
 use gloo::events::{EventListener, EventListenerOptions};
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use wasm_bindgen::JsCast;
-use web_sys::{CanvasRenderingContext2d, Element, HtmlCanvasElement};
+use wasm_bindgen::{JsCast, JsValue};
+use web_sys::{CanvasRenderingContext2d, Element, HtmlCanvasElement, KeyboardEvent};
 use yew::services::render::{RenderService, RenderTask};
 use yew::services::websocket::{WebSocketService, WebSocketStatus};
+use yew::utils::window;
 use yew::{
     html, Callback, Component, ComponentLink, Html, NodeRef, PointerEvent, Properties, ShouldRender,
 };
@@ -69,6 +70,7 @@ struct CanvasState {
     vr: VirtualCanvas,
     context: CanvasRenderingContext2d,
     _disable_touchstart: EventListener,
+    _hook_ctrl_z: EventListener,
 }
 
 #[derive(Copy, Clone)]
@@ -286,16 +288,33 @@ impl Component for InGame {
                     .flatten()
                     .and_then(|c| c.dyn_into::<CanvasRenderingContext2d>().ok())
                 {
-                    let listener = EventListener::new_with_options(
+                    let disable_touchstart = EventListener::new_with_options(
                         &canvas.into(),
                         "touchstart",
                         EventListenerOptions::enable_prevent_default(),
                         |e| e.prevent_default(),
                     );
+                    let hook_ctrl_z = EventListener::new_with_options(
+                        &window().into(),
+                        "keydown",
+                        EventListenerOptions::enable_prevent_default(),
+                        {
+                            let link = self.link.clone();
+                            move |e| {
+                                let e = KeyboardEvent::from(JsValue::from(e));
+                                let z = 90;
+                                if e.ctrl_key() && e.key_code() == z {
+                                    e.prevent_default();
+                                    link.send_message(Msg::Undo);
+                                }
+                            }
+                        },
+                    );
                     self.canvas = Some(CanvasState {
                         vr: VirtualCanvas::new(),
                         context,
-                        _disable_touchstart: listener,
+                        _disable_touchstart: disable_touchstart,
+                        _hook_ctrl_z: hook_ctrl_z,
                     });
                 }
             }
