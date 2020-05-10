@@ -169,12 +169,12 @@ impl LineWidth {
         }
     }
 
-    pub fn text(self) -> &'static str {
+    pub fn css_icon_style(self) -> &'static str {
         match self {
-            Self::Small => "1",
-            Self::Medium => "2",
-            Self::Large => "4",
-            Self::Extra => "7",
+            Self::Small => "font-size: 4px",
+            Self::Medium => "font-size: 6px",
+            Self::Large => "font-size: 10px",
+            Self::Extra => "font-size: 14px",
         }
     }
 }

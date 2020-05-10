@@ -1,5 +1,5 @@
 use crate::page;
-use crate::util::NeqAssign;
+use crate::util::{NeqAssign, StrExt};
 use itertools::{EitherOrBoth, Itertools};
 use std::mem;
 use yew::{html, Component, ComponentLink, Event, Html, InputData, Properties, ShouldRender};
@@ -43,8 +43,10 @@ impl Component for GuessInput {
             }
             Msg::Submit => {
                 let guess = mem::take(&mut self.guess);
-                self.game_link
-                    .send_message(page::in_game::Msg::SendGuess(guess));
+                if !guess.is_empty() {
+                    self.game_link
+                        .send_message(page::in_game::Msg::SendGuess(guess));
+                }
                 true
             }
         }
@@ -68,7 +70,7 @@ impl Component for GuessInput {
             Msg::Submit
         });
         html! {
-            <form onsubmit=on_submit>
+            <form onsubmit=on_submit style="width: 100%">
                 {match &self.guess_template {
                     Some(guess_template) => self.render_template(&guess_template.0),
                     None => html! {},
@@ -78,6 +80,7 @@ impl Component for GuessInput {
                     placeholder="Guess"
                     oninput=on_change_guess
                     value=&self.guess
+                    style="width: 100%"
                 />
             </form>
         }
@@ -154,21 +157,12 @@ impl GuessInput {
             .zip_longest(self.guess.chars())
             .map(|entry| match entry {
                 Both(template, guess) => {
-                    let underlined = match template.is_underlined() {
-                        true => "underlined",
-                        false => "",
-                    };
-                    let invalid = match template.is_valid(guess) {
-                        false => "invalid",
-                        true => "",
-                    };
+                    let underlined = "underlined".class_if(template.is_underlined());
+                    let invalid = "invalid".class_if(!template.is_valid(guess));
                     html! { <span class=("guess-char", underlined, invalid)>{guess}</span> }
                 }
                 Left(template) => {
-                    let underlined = match template.is_underlined() {
-                        true => "underlined",
-                        false => "",
-                    };
+                    let underlined = "underlined".class_if(template.is_underlined());
                     html! { <span class=("guess-char", underlined)>{template.char()}</span> }
                 }
                 Right(guess) => {
@@ -177,7 +171,7 @@ impl GuessInput {
             })
             .collect::<Html>();
         html! {
-            <div class="guess-template-container">{template}</div>
+            <div class="guess-chars">{template}</div>
         }
     }
 }

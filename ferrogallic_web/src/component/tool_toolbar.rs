@@ -1,5 +1,5 @@
 use crate::page;
-use crate::util::NeqAssign;
+use crate::util::{NeqAssign, StrExt};
 use ferrogallic_shared::domain::Tool;
 use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
 
@@ -34,23 +34,37 @@ impl Component for ToolToolbar {
     }
 
     fn view(&self) -> Html {
-        Tool::ALL
+        let tools = Tool::ALL
             .iter()
             .map(|&tool| {
                 let onclick = self
                     .game_link
                     .callback(move |_| page::in_game::Msg::SetTool(tool));
-                let class = if tool == self.tool { "selected" } else { "" };
-                let text = match tool {
-                    Tool::Pen(width) => width.text(),
-                    Tool::Fill => "fill",
+                let active = "active".class_if(tool == self.tool);
+                let (text, style) = match tool {
+                    Tool::Pen(width) => ("⚫", width.css_icon_style()),
+                    Tool::Fill => ("▧", "font-size: 28px"),
                 };
                 html! {
-                    <button onclick=onclick class=class>
+                    <button class=("tool-button", active) onclick=onclick style=style>
                         {text}
                     </button>
                 }
             })
-            .collect()
+            .collect::<Html>();
+
+        let on_undo = self.game_link.callback(|_| page::in_game::Msg::Undo);
+        let undo = html! {
+            <button class="tool-button" onclick=on_undo style="font-size: 28px">
+                {"↶"}
+            </button>
+        };
+
+        html! {
+            <div class="tool-buttons">
+                {tools}
+                {undo}
+            </div>
+        }
     }
 }

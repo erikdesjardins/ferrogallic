@@ -33,20 +33,30 @@ impl Component for Players {
     }
 
     fn view(&self) -> Html {
-        self.props
+        let players = self
+            .props
             .players
             .values()
             .map(|player| {
                 html! {
-                    <p>
-                        {&player.nick}{" ("}{player.score}{")"}
-                        {match player.status {
-                             PlayerStatus::Connected => "",
-                             PlayerStatus::Disconnected => " - disconnected...",
-                        }}
-                    </p>
+                    <li>
+                        {&player.nick}
+                        <ul>
+                            <li>{"Score: "}{player.score}</li>
+                            <li>{"Status: "}{match player.status {
+                                PlayerStatus::Connected => "connected",
+                                PlayerStatus::Disconnected => "disconnected",
+                            }}</li>
+                        </ul>
+                    </li>
                 }
             })
-            .collect()
+            .collect::<Html>();
+
+        html! {
+            <ul class="tree-view" style="height: 100%; overflow-y: scroll">
+                {players}
+            </ul>
+        }
     }
 }

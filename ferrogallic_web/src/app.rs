@@ -8,6 +8,7 @@ use yew_router::router::Router;
 
 pub enum Msg {
     SetError(Error),
+    ClearError,
 }
 
 pub struct App {
@@ -27,6 +28,10 @@ impl Component for App {
         match msg {
             Msg::SetError(e) => {
                 self.error = Some(Arc::new(e));
+                true
+            }
+            Msg::ClearError => {
+                self.error = None;
                 true
             }
         }
@@ -49,10 +54,8 @@ impl Component for App {
         let default_redirect = Router::redirect(|_| AppRoute::Create);
         html! {
             <>
-                <main>
-                    <Router<AppRoute> render=render_app redirect=default_redirect />
-                </main>
-                <component::ErrorBar error=self.error.clone() />
+                <Router<AppRoute> render=render_app redirect=default_redirect />
+                <component::ErrorPopup app_link=self.link.clone() error=self.error.clone() />
             </>
         }
     }

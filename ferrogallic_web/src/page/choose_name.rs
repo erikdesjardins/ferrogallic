@@ -32,7 +32,7 @@ impl Component for ChooseName {
             link,
             router: RouteAgent::dispatcher(),
             props,
-            nick: Nickname::new("".to_string()),
+            nick: Nickname::new(String::new()),
         }
     }
 
@@ -66,22 +66,31 @@ impl Component for ChooseName {
             Msg::GoToLobby
         });
         html! {
-            <fieldset>
-                <legend>{"Joining lobby: "}{&self.props.lobby}</legend>
-                <form onsubmit=on_join_game>
-                    <input
-                        type="text"
-                        placeholder="Nickname"
-                        oninput=on_change_nick
-                        value=&self.nick
-                    />
-                    <input
-                        type="submit"
-                        value="Join"
-                        disabled=self.nick.is_empty()
-                    />
-                </form>
-            </fieldset>
+            <div style="display: flex; justify-content: space-evenly; align-items: flex-start">
+                <main class="window" style="min-width: 300px">
+                    <div class="title-bar">
+                        <div class="title-bar-text">{"Join Game - "}{&self.props.lobby}</div>
+                    </div>
+                    <article class="window-body">
+                        <form onsubmit=on_join_game>
+                            <p>
+                                <input
+                                    type="text"
+                                    placeholder="Nickname"
+                                    oninput=on_change_nick
+                                    value=&self.nick
+                                    style="width: 100%"
+                                />
+                            </p>
+                            <section class="field-row" style="justify-content: flex-end">
+                                <button disabled=self.nick.is_empty()>
+                                    {"Join"}
+                                </button>
+                            </section>
+                        </form>
+                    </article>
+                </main>
+            </div>
         }
     }
 }

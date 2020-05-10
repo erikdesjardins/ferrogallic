@@ -2,7 +2,6 @@ use crate::api::{WebSocketApiTask, WebSocketServiceExt};
 use crate::app;
 use crate::canvas::VirtualCanvas;
 use crate::component;
-use crate::route::AppRoute;
 use crate::util::NeqAssign;
 use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::game::{Canvas, Game, GameReq, GameState, Player};
@@ -16,10 +15,8 @@ use web_sys::{CanvasRenderingContext2d, Element, HtmlCanvasElement};
 use yew::services::render::{RenderService, RenderTask};
 use yew::services::websocket::{WebSocketService, WebSocketStatus};
 use yew::{
-    html, Callback, Component, ComponentLink, Html, MouseEvent, NodeRef, PointerEvent, Properties,
-    ShouldRender,
+    html, Callback, Component, ComponentLink, Html, NodeRef, PointerEvent, Properties, ShouldRender,
 };
-use yew_router::route::Route;
 
 pub enum Msg {
     ConnStatus(WebSocketStatus),
@@ -314,22 +311,14 @@ impl Component for InGame {
     }
 
     fn view(&self) -> Html {
-        let lobby_url = Route::<()>::from(AppRoute::ChooseName {
-            lobby: self.lobby.clone(),
-        })
-        .to_string();
-        let no_leftclick = self.link.callback(|e: MouseEvent| {
-            e.prevent_default();
-            Msg::Ignore
-        });
         let on_pointer_down =
             self.handle_pointer_event_if(|e| e.buttons() == 1, PointerAction::Down);
         let on_pointer_move = self.handle_pointer_event(PointerAction::Move);
         let on_pointer_up = self.handle_pointer_event(PointerAction::Up);
 
         let mut can_draw = false;
-        let mut choose_word = html! {};
-        let mut timer = html! {};
+        let mut choose_words = None;
+        let mut timer = None;
         let mut guess_template = None;
         let _: () = match self.game.as_ref() {
             GameState::WaitingToStart { .. } => {
@@ -337,9 +326,7 @@ impl Component for InGame {
             }
             GameState::ChoosingWords { choosing, words } => {
                 if *choosing == self.nick.user_id() {
-                    choose_word = html! {
-                        <component::ChooseToolbar game_link=self.link.clone(), words=words.clone() />
-                    };
+                    choose_words = Some(words.clone());
                 }
             }
             GameState::Drawing {
@@ -348,9 +335,7 @@ impl Component for InGame {
                 word,
                 seconds_remaining,
             } => {
-                timer = html! {
-                    <>{" - "}{seconds_remaining}{"s"}</>
-                };
+                timer = Some(*seconds_remaining);
                 if *drawing == self.nick.user_id() {
                     can_draw = true;
                     guess_template = Some(component::guess_input::Template::reveal_all(&word));
@@ -361,43 +346,53 @@ impl Component for InGame {
         };
 
         html! {
-            <fieldset>
-                <legend><a href=lobby_url.as_str() onclick=no_leftclick>{&lobby_url}</a></legend>
-                <article class="game-container">
-                    <fieldset>
-                        <legend>{"Players"}</legend>
-                        <section class="player-container">
-                            <component::Players players=self.players.clone()/>
-                        </section>
-                    </fieldset>
-                    <fieldset>
-                        <legend>{"Canvas"}{timer}</legend>
-                        <canvas
-                            ref=self.canvas_ref.clone()
-                            style=if can_draw { "" } else { "pointer-events: none" }
-                            onpointerdown=on_pointer_down
-                            onpointermove=on_pointer_move
-                            onpointerup=&on_pointer_up
-                            onpointerleave=on_pointer_up
-                            width=CANVAS_WIDTH
-                            height=CANVAS_HEIGHT
-                        />
-                        <section class="toolbar-container">
+            <main class="window" style="max-width: 1500px; margin: auto">
+                <div class="title-bar">
+                    <div class="title-bar-text">{"In Game - "}{&self.lobby}{match timer {
+                        Some(seconds_remaining) => html! { <>{" ("}{seconds_remaining}{"s)"}</> },
+                        None => html! {},
+                    }}</div>
+                </div>
+                <article class="window-body" style="display: flex">
+                    <section style="flex: 1; height: 753px">
+                        <component::Players players=self.players.clone()/>
+                    </section>
+                    <section style="margin: 0 8px; position: relative">
+                        <fieldset style="padding-block-start: 1px; padding-block-end: 0px; padding-inline-start: 1px; padding-inline-end: 1px;">
+                            <canvas
+                                ref=self.canvas_ref.clone()
+                                style=if can_draw { "" } else { "pointer-events: none" }
+                                onpointerdown=on_pointer_down
+                                onpointermove=on_pointer_move
+                                onpointerup=&on_pointer_up
+                                onpointerleave=on_pointer_up
+                                width=CANVAS_WIDTH
+                                height=CANVAS_HEIGHT
+                            />
+                        </fieldset>
+                        <div style="position: relative">
                             <component::ColorToolbar game_link=self.link.clone() color=self.color/>
                             <component::ToolToolbar game_link=self.link.clone() tool=self.tool/>
-                            <component::UndoToolbar game_link=self.link.clone()/>
-                            {choose_word}
-                        </section>
-                    </fieldset>
-                    <fieldset>
-                        <legend>{"Guesses"}</legend>
-                        <section class="guess-container">
+                            <div
+                                class="hatched-background"
+                                style=if can_draw { "" } else { "position: absolute; top: 0; width: 100%; height: 100%" }
+                            />
+                        </div>
+                        {match choose_words {
+                            Some(words) => html! {
+                                <component::ChoosePopup game_link=self.link.clone(), words=words />
+                            },
+                            None => html! {},
+                        }}
+                    </section>
+                    <section style="flex: 1; height: 753px; display: flex; flex-direction: column">
+                        <div style="flex: 1; min-height: 0">
                             <component::GuessArea players=self.players.clone() guesses=self.guesses.clone()/>
-                            <component::GuessInput game_link=self.link.clone(), guess_template=guess_template/>
-                        </section>
-                    </fieldset>
+                        </div>
+                        <component::GuessInput game_link=self.link.clone(), guess_template=guess_template/>
+                    </section>
                 </article>
-            </fieldset>
+            </main>
         }
     }
 }

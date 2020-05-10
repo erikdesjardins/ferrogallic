@@ -47,30 +47,30 @@ impl Component for GuessArea {
             .iter()
             .map(|guess| match guess.as_ref() {
                 Guess::System(system) => html! {
-                    <div>{system}</div>
+                    <li>{"🖥️ "}{system}</li>
                 },
                 Guess::Message(user_id, message) => html! {
-                    <div>{"["}{format_user(*user_id)}{"] "}{message}</div>
+                    <li>{format_user(*user_id)}{": "}{message}</li>
                 },
                 Guess::NowChoosing(user_id) => html! {
-                    <div>{"["}{format_user(*user_id)}{"] is choosing a word."}</div>
+                    <li>{"✨ "}{format_user(*user_id)}{" is choosing a word."}</li>
                 },
                 Guess::Guess(user_id, guess) => html! {
-                    <div>{"["}{format_user(*user_id)}{"] guessed '"}{guess}{"'."}</div>
+                    <li>{"❌ "}{format_user(*user_id)}{" guessed '"}{guess}{"'."}</li>
                 },
                 Guess::Correct(user_id) => html! {
-                    <div>{"["}{format_user(*user_id)}{"] "}{" guessed correctly!"}</div>
+                    <li>{"✔️ "}{format_user(*user_id)}{" guessed correctly!"}</li>
                 },
                 Guess::EarnedPoints(user_id, points) => html! {
-                    <div>{"["}{format_user(*user_id)}{"] earned "}{points}{" points."}</div>
+                    <li>{"💵 "}{format_user(*user_id)}{" earned "}{points}{" points."}</li>
                 },
                 Guess::TimeExpired => html! {
-                    <div>{"Time's up!"}</div>
+                    <li>{"⏰ Time's up!"}</li>
                 },
             })
             .collect::<Html>();
         html! {
-            <div class="guesses">{guesses}</div>
+            <ul class="tree-view" style="height: 100%; overflow-y: scroll">{guesses}</ul>
         }
     }
 }
