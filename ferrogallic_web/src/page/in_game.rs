@@ -6,7 +6,9 @@ use crate::util::NeqAssign;
 use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::game::{Canvas, Game, GameReq, GameState, Player};
 use ferrogallic_shared::config::{CANVAS_HEIGHT, CANVAS_WIDTH};
-use ferrogallic_shared::domain::{Color, Epoch, Guess, Lobby, Lowercase, Nickname, Tool, UserId};
+use ferrogallic_shared::domain::{
+    Color, Epoch, Guess, Lobby, Lowercase, Nickname, Tool, U12Pair, UserId,
+};
 use gloo::events::{EventListener, EventListenerOptions};
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -35,9 +37,9 @@ pub enum Msg {
 }
 
 pub enum PointerAction {
-    Down((u16, u16)),
-    Move((u16, u16)),
-    Up((u16, u16)),
+    Down(U12Pair),
+    Move(U12Pair),
+    Up(U12Pair),
 }
 
 #[derive(Clone, Properties)]
@@ -76,7 +78,7 @@ struct CanvasState {
 #[derive(Copy, Clone)]
 enum PointerState {
     Up,
-    Down { at: (u16, u16) },
+    Down { at: U12Pair },
 }
 
 impl Component for InGame {
@@ -416,7 +418,7 @@ impl Component for InGame {
 impl InGame {
     fn handle_pointer_event(
         &self,
-        f: impl Fn((u16, u16)) -> PointerAction + 'static,
+        f: impl Fn(U12Pair) -> PointerAction + 'static,
     ) -> Callback<PointerEvent> {
         self.handle_pointer_event_if(|_| true, f)
     }
@@ -424,7 +426,7 @@ impl InGame {
     fn handle_pointer_event_if(
         &self,
         pred: impl Fn(&PointerEvent) -> bool + 'static,
-        f: impl Fn((u16, u16)) -> PointerAction + 'static,
+        f: impl Fn(U12Pair) -> PointerAction + 'static,
     ) -> Callback<PointerEvent> {
         self.link.callback(move |e: PointerEvent| {
             if pred(&e) {
@@ -432,7 +434,7 @@ impl InGame {
                     Some(target) => {
                         e.prevent_default();
                         let origin = target.get_bounding_client_rect();
-                        Msg::Pointer(f((
+                        Msg::Pointer(f(U12Pair::new(
                             (e.client_x() as u16).saturating_sub(origin.x() as u16),
                             (e.client_y() as u16).saturating_sub(origin.y() as u16),
                         )))

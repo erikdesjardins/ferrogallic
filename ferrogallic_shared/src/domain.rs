@@ -232,6 +232,34 @@ impl Tool {
 }
 
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
+pub struct U12Pair {
+    bytes: [u8; 3],
+}
+
+impl U12Pair {
+    pub fn new(x: u16, y: u16) -> Self {
+        debug_assert!(x <= 0xfff);
+        debug_assert!(y <= 0xfff);
+
+        Self {
+            bytes: [
+                x as u8,
+                (x >> 8 & 0xf) as u8 | (y << 4) as u8,
+                (y >> 4) as u8,
+            ],
+        }
+    }
+
+    pub fn x(self) -> u16 {
+        self.bytes[0] as u16 | (self.bytes[1] as u16 & 0xf) << 8
+    }
+
+    pub fn y(self) -> u16 {
+        (self.bytes[1] as u16) >> 4 | (self.bytes[2] as u16) << 4
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
 #[repr(C)]
 pub struct Color {
     pub r: u8,

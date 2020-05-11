@@ -30,10 +30,18 @@ impl VirtualCanvas {
                 width,
                 color,
             } => {
-                draw::stroke_line(&mut self.buffer, from.0, from.1, to.0, to.1, width, color);
+                draw::stroke_line(
+                    &mut self.buffer,
+                    from.x(),
+                    from.y(),
+                    to.x(),
+                    to.y(),
+                    width,
+                    color,
+                );
             }
             Canvas::Fill { at, color } => {
-                flood_fill::fill(&mut self.buffer, at.0 as usize, at.1 as usize, color);
+                flood_fill::fill(&mut self.buffer, at.x() as usize, at.y() as usize, color);
             }
             Canvas::PushUndo => {
                 let buffer = self.buffer.clone_boxed();
