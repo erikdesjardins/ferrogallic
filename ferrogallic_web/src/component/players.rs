@@ -40,14 +40,43 @@ impl Component for Players {
     }
 
     fn view(&self) -> Html {
+        let player_rankings = {
+            let mut players_in_order = self
+                .players
+                .iter()
+                .map(|(uid, player)| (*uid, player.score))
+                .collect::<Vec<_>>();
+            players_in_order.sort_by_key(|(_, score)| *score);
+            players_in_order
+                .into_iter()
+                .rev()
+                .enumerate()
+                .scan(
+                    (u32::MAX, 0),
+                    |(prev_score, prev_rank), (index, (uid, score))| match () {
+                        _ if score == 0 => None,
+                        _ if score == *prev_score => Some((uid, *prev_rank)),
+                        _ => {
+                            let rank = index + 1;
+                            *prev_score = score;
+                            *prev_rank = rank;
+                            Some((uid, rank))
+                        }
+                    },
+                )
+                .collect::<BTreeMap<_, _>>()
+        };
         let players = self
             .players
-            .values()
-            .map(|player| {
+            .iter()
+            .map(|(&user_id, player)| {
+                let ranking = match player_rankings.get(&user_id) {
+                    Some(rank) => html! { <>{" (#"}{rank}{")"}</> },
+                    None => html! {},
+                };
                 let status = match player.status {
                     PlayerStatus::Connected => html! { "connected" },
                     PlayerStatus::Disconnected => {
-                        let user_id = player.nick.user_id();
                         let epoch = player.epoch;
                         let on_remove = self.game_link.callback(move |e: MouseEvent| {
                             e.prevent_default();
@@ -65,7 +94,7 @@ impl Component for Players {
                     <li>
                         {&player.nick}
                         <ul>
-                            <li>{"Score: "}{player.score}</li>
+                            <li>{"Score: "}{player.score}{ranking}</li>
                             <li>{"Status: "}{status}</li>
                         </ul>
                     </li>
