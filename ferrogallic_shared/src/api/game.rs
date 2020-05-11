@@ -97,3 +97,8 @@ pub enum Canvas {
     PopUndo,
     Clear,
 }
+
+#[test]
+fn canvas_size() {
+    assert_eq!(std::mem::size_of::<Canvas>(), 14);
+}
