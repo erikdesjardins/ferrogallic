@@ -120,6 +120,9 @@ mod guess {
                 Guess::Guess(user_id, guess) => html! {
                     <li>{"❌ "}{format_user(*user_id)}{" guessed '"}{guess}{"'."}</li>
                 },
+                Guess::CloseGuess(guess) => html! {
+                    <li>{"🤏 '"}{guess}{"' is close!"}</li>
+                },
                 Guess::Correct(user_id) => html! {
                     <li>{"✔️ "}{format_user(*user_id)}{" guessed correctly!"}</li>
                 },

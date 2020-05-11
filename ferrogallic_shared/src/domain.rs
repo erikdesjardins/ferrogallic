@@ -104,16 +104,48 @@ impl fmt::Display for Epoch {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialOrd, Ord, PartialEq, Eq)]
+pub struct Lowercase(Arc<str>);
+
+impl Lowercase {
+    pub fn new(str: impl Into<String>) -> Self {
+        let mut str = str.into();
+        str.make_ascii_lowercase();
+        Self(str.into())
+    }
+}
+
+impl Default for Lowercase {
+    fn default() -> Self {
+        Self(Arc::from(""))
+    }
+}
+
+impl Deref for Lowercase {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl fmt::Display for Lowercase {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub enum Guess {
     System(Arc<str>),
-    Message(UserId, Arc<str>),
+    Message(UserId, Lowercase),
     NowChoosing(UserId),
     NowDrawing(UserId),
-    Guess(UserId, Arc<str>),
+    Guess(UserId, Lowercase),
+    CloseGuess(Lowercase),
     Correct(UserId),
     EarnedPoints(UserId, u32),
     SecondsLeft(u8),
-    TimeExpired(Arc<str>),
+    TimeExpired(Lowercase),
 }
 
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]

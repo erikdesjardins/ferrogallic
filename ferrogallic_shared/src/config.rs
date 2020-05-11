@@ -13,3 +13,4 @@ pub const NUMBER_OF_WORDS_TO_CHOOSE: usize = 3;
 pub const GUESS_SECONDS: u8 = 120;
 pub const NOTIFY_TIME_REMAINING_AT: &[u8] = &[60, 30, 10];
 pub const PERFECT_GUESS_SCORE: u32 = 500;
+pub const CLOSE_GUESS_LEVENSHTEIN: usize = 2;

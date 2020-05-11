@@ -3,10 +3,10 @@ use crate::words;
 use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::game::{Canvas, Game, GameReq, GameState, Player, PlayerStatus};
 use ferrogallic_shared::config::{
-    GUESS_SECONDS, NOTIFY_TIME_REMAINING_AT, NUMBER_OF_WORDS_TO_CHOOSE, PERFECT_GUESS_SCORE,
-    TIMER_TICK_SECONDS, WS_RX_BUFFER_SHARED, WS_TX_BUFFER_BROADCAST,
+    CLOSE_GUESS_LEVENSHTEIN, GUESS_SECONDS, NOTIFY_TIME_REMAINING_AT, NUMBER_OF_WORDS_TO_CHOOSE,
+    PERFECT_GUESS_SCORE, TIMER_TICK_SECONDS, WS_RX_BUFFER_SHARED, WS_TX_BUFFER_BROADCAST,
 };
-use ferrogallic_shared::domain::{Epoch, Guess, Lobby, Nickname, UserId};
+use ferrogallic_shared::domain::{Epoch, Guess, Lobby, Lowercase, Nickname, UserId};
 use futures::{SinkExt, StreamExt};
 use rand::seq::SliceRandom;
 use rand::thread_rng;
@@ -15,6 +15,7 @@ use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::time::Duration;
+use strsim::levenshtein;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::task::spawn;
@@ -95,11 +96,12 @@ pub async fn join_game(
                     Ok(broadcast) => match broadcast {
                         Broadcast::Everyone(resp) => ws.send(&resp).await?,
                         Broadcast::Exclude(uid, resp) if uid != user_id => ws.send(&resp).await?,
+                        Broadcast::Only(uid, resp) if uid == user_id => ws.send(&resp).await?,
                         Broadcast::Kill(uid, ep) if uid == user_id && ep == epoch => {
                             log::info!("Player={} Lobby={} Epoch={} killed", nick, lobby, epoch);
                             return Ok(());
                         }
-                        Broadcast::Exclude(_, _) | Broadcast::Kill(_, _) => {
+                        Broadcast::Exclude(_, _) | Broadcast::Only(_, _)  | Broadcast::Kill(_, _) => {
                             log::trace!("Player={} Lobby={} Epoch={} ignored: {:?}", nick, lobby, epoch, broadcast);
                         }
                     },
@@ -159,6 +161,7 @@ enum GameLoop {
 enum Broadcast {
     Everyone(Game),
     Exclude(UserId, Game),
+    Only(UserId, Game),
     Kill(UserId, Epoch),
 }
 
@@ -319,7 +322,7 @@ async fn game_loop(lobby: &Lobby, mut rx: mpsc::Receiver<GameLoop>) -> Result<()
                             } => {
                                 if *drawing == user_id || correct_scores.contains_key(&user_id) {
                                     Guess::Message(user_id, guess)
-                                } else if guess.eq_ignore_ascii_case(word) {
+                                } else if guess == *word {
                                     let seconds_remaining = *seconds_remaining;
                                     if let GameState::Drawing { correct_scores, .. } =
                                         Arc::make_mut(game_state.write())
@@ -329,6 +332,13 @@ async fn game_loop(lobby: &Lobby, mut rx: mpsc::Receiver<GameLoop>) -> Result<()
                                     }
                                     Guess::Correct(user_id)
                                 } else {
+                                    if levenshtein(&guess, word) <= CLOSE_GUESS_LEVENSHTEIN {
+                                        tx_broadcast.send(Broadcast::Only(
+                                            user_id,
+                                            Game::Guess(Guess::CloseGuess(guess.clone())),
+                                        ))?;
+                                    }
+
                                     Guess::Guess(user_id, guess)
                                 }
                             }
@@ -452,7 +462,7 @@ async fn game_loop(lobby: &Lobby, mut rx: mpsc::Receiver<GameLoop>) -> Result<()
                 let words = words::GAME
                     .choose_multiple(&mut thread_rng(), NUMBER_OF_WORDS_TO_CHOOSE)
                     .copied()
-                    .map(Arc::from)
+                    .map(Lowercase::new)
                     .collect();
                 *Arc::make_mut(game_state.write()) = GameState::ChoosingWords { choosing, words };
                 let guess = Guess::NowChoosing(choosing);

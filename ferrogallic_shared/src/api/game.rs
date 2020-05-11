@@ -1,5 +1,5 @@
 use crate::api::WsEndpoint;
-use crate::domain::{Color, Epoch, Guess, LineWidth, Lobby, Nickname, UserId};
+use crate::domain::{Color, Epoch, Guess, LineWidth, Lobby, Lowercase, Nickname, UserId};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -23,8 +23,8 @@ fn game_size() {
 #[derive(Debug, Deserialize, Serialize)]
 pub enum GameReq {
     Canvas(Canvas),
-    Choose(Arc<str>),
-    Guess(Arc<str>),
+    Choose(Lowercase),
+    Guess(Lowercase),
     Join(Lobby, Nickname),
     Remove(UserId, Epoch),
 }
@@ -46,12 +46,12 @@ pub enum GameState {
     },
     ChoosingWords {
         choosing: UserId,
-        words: Arc<[Arc<str>]>,
+        words: Arc<[Lowercase]>,
     },
     Drawing {
         drawing: UserId,
         correct_scores: BTreeMap<UserId, u32>,
-        word: Arc<str>,
+        word: Lowercase,
         seconds_remaining: u8,
     },
 }

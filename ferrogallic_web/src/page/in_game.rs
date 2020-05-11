@@ -6,7 +6,7 @@ use crate::util::NeqAssign;
 use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::game::{Canvas, Game, GameReq, GameState, Player};
 use ferrogallic_shared::config::{CANVAS_HEIGHT, CANVAS_WIDTH};
-use ferrogallic_shared::domain::{Color, Epoch, Guess, Lobby, Nickname, Tool, UserId};
+use ferrogallic_shared::domain::{Color, Epoch, Guess, Lobby, Lowercase, Nickname, Tool, UserId};
 use gloo::events::{EventListener, EventListenerOptions};
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -23,8 +23,8 @@ pub enum Msg {
     ConnStatus(WebSocketStatus),
     Message(Game),
     RemovePlayer(UserId, Epoch),
-    ChooseWord(Arc<str>),
-    SendGuess(String),
+    ChooseWord(Lowercase),
+    SendGuess(Lowercase),
     Pointer(PointerAction),
     Undo,
     Render,
@@ -171,7 +171,7 @@ impl Component for InGame {
             }
             Msg::SendGuess(guess) => {
                 if let Some(ws) = &mut self.active_ws {
-                    ws.send_api(&GameReq::Guess(Arc::from(guess)));
+                    ws.send_api(&GameReq::Guess(guess));
                 }
                 false
             }

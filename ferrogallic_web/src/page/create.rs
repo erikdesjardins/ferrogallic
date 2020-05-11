@@ -43,9 +43,9 @@ impl Component for Create {
             app_link,
             router: RouteAgent::dispatcher(),
             fetch_service: FetchService::new(),
-            custom_lobby_name: Lobby::new(String::new()),
+            custom_lobby_name: Lobby::new(""),
             fetching_generated_lobby_name: None,
-            generated_lobby_name: Lobby::new(String::new()),
+            generated_lobby_name: Lobby::new(""),
         }
     }
 

@@ -1,11 +1,12 @@
 use crate::page;
 use crate::util::{NeqAssign, StrExt};
+use ferrogallic_shared::domain::Lowercase;
 use itertools::{EitherOrBoth, Itertools};
 use std::mem;
 use yew::{html, Component, ComponentLink, Event, Html, InputData, Properties, ShouldRender};
 
 pub enum Msg {
-    SetGuess(String),
+    SetGuess(Lowercase),
     Submit,
 }
 
@@ -19,7 +20,7 @@ pub struct GuessInput {
     link: ComponentLink<Self>,
     game_link: ComponentLink<page::InGame>,
     guess_template: Option<Template>,
-    guess: String,
+    guess: Lowercase,
 }
 
 impl Component for GuessInput {
@@ -64,7 +65,9 @@ impl Component for GuessInput {
     }
 
     fn view(&self) -> Html {
-        let on_change_guess = self.link.callback(|e: InputData| Msg::SetGuess(e.value));
+        let on_change_guess = self
+            .link
+            .callback(|e: InputData| Msg::SetGuess(Lowercase::new(e.value)));
         let on_submit = self.link.callback(|e: Event| {
             e.prevent_default();
             Msg::Submit
