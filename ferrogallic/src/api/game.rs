@@ -227,7 +227,7 @@ enum Transition {
 }
 
 async fn game_loop(lobby: &Lobby, mut rx: mpsc::Receiver<GameLoop>) -> Result<(), GameLoopError> {
-    let (tx_broadcast, _) = broadcast::channel(WS_TX_BUFFER_BROADCAST);
+    let (tx, _) = broadcast::channel(WS_TX_BUFFER_BROADCAST);
 
     let mut players = Invalidate::new(Arc::new(BTreeMap::new()));
     let mut game_state = Invalidate::new(Arc::new(GameState::default()));
@@ -242,7 +242,7 @@ async fn game_loop(lobby: &Lobby, mut rx: mpsc::Receiver<GameLoop>) -> Result<()
         match msg {
             GameLoop::Connect(user_id, epoch, nick, tx_onboard) => {
                 let onboarding = Onboarding {
-                    rx_broadcast: tx_broadcast.subscribe(),
+                    rx_broadcast: tx.subscribe(),
                     messages: vec![
                         Game::Game(game_state.read().clone()),
                         Game::GuessBulk(guesses.clone()),
@@ -275,7 +275,7 @@ async fn game_loop(lobby: &Lobby, mut rx: mpsc::Receiver<GameLoop>) -> Result<()
                 Some(player) if player.epoch == epoch => match req {
                     GameReq::Canvas(event) => {
                         canvas_events.push(event);
-                        tx_broadcast.send(Broadcast::Exclude(user_id, Game::Canvas(event)))?;
+                        tx.send(Broadcast::Exclude(user_id, Game::Canvas(event)))?;
                     }
                     GameReq::Choose(word) => match game_state.read().as_ref() {
                         GameState::ChoosingWords { choosing, words }
@@ -288,16 +288,14 @@ async fn game_loop(lobby: &Lobby, mut rx: mpsc::Receiver<GameLoop>) -> Result<()
                                 word,
                                 seconds_remaining: GUESS_SECONDS,
                             };
-                            tx_broadcast.send(Broadcast::Everyone(Game::Guess(
-                                Guess::NowDrawing(drawing),
-                            )))?;
+                            tx.send(Broadcast::Everyone(Game::Guess(Guess::NowDrawing(drawing))))?;
                             canvas_events.clear();
-                            tx_broadcast.send(Broadcast::Everyone(Game::Canvas(Canvas::Clear)))?;
+                            tx.send(Broadcast::Everyone(Game::Canvas(Canvas::Clear)))?;
                         }
                         gs => {
                             let nick = &player.nick;
                             log::warn!("Lobby={} Player={} invalid choose: {:?}", lobby, nick, gs);
-                            tx_broadcast.send(Broadcast::Kill(user_id, epoch))?;
+                            tx.send(Broadcast::Kill(user_id, epoch))?;
                         }
                     },
                     GameReq::Guess(guess) => {
@@ -333,7 +331,7 @@ async fn game_loop(lobby: &Lobby, mut rx: mpsc::Receiver<GameLoop>) -> Result<()
                                     Guess::Correct(user_id)
                                 } else {
                                     if levenshtein(&guess, word) <= CLOSE_GUESS_LEVENSHTEIN {
-                                        tx_broadcast.send(Broadcast::Only(
+                                        tx.send(Broadcast::Only(
                                             user_id,
                                             Game::Guess(Guess::CloseGuess(guess.clone())),
                                         ))?;
@@ -344,7 +342,7 @@ async fn game_loop(lobby: &Lobby, mut rx: mpsc::Receiver<GameLoop>) -> Result<()
                             }
                         };
                         guesses.push(guess.clone());
-                        tx_broadcast.send(Broadcast::Everyone(Game::Guess(guess)))?;
+                        tx.send(Broadcast::Everyone(Game::Guess(guess)))?;
                     }
                     GameReq::Remove(remove_uid, remove_epoch) => {
                         if let Entry::Occupied(entry) =
@@ -358,11 +356,11 @@ async fn game_loop(lobby: &Lobby, mut rx: mpsc::Receiver<GameLoop>) -> Result<()
                     }
                     GameReq::Join(..) => {
                         log::warn!("Lobby={} Player={} invalid: {:?}", lobby, player.nick, req);
-                        tx_broadcast.send(Broadcast::Kill(user_id, epoch))?;
+                        tx.send(Broadcast::Kill(user_id, epoch))?;
                     }
                 },
                 _ => {
-                    tx_broadcast.send(Broadcast::Kill(user_id, epoch))?;
+                    tx.send(Broadcast::Kill(user_id, epoch))?;
                 }
             },
             GameLoop::Disconnect(user_id, epoch) => {
@@ -374,7 +372,7 @@ async fn game_loop(lobby: &Lobby, mut rx: mpsc::Receiver<GameLoop>) -> Result<()
             }
             GameLoop::SecondsElapsed(seconds) => match game_state.read().as_ref() {
                 GameState::WaitingToStart { .. } | GameState::ChoosingWords { .. } => {
-                    tx_broadcast.send(Broadcast::Everyone(Game::Heartbeat))?;
+                    tx.send(Broadcast::Everyone(Game::Heartbeat))?;
                 }
                 GameState::Drawing { .. } => {
                     if let GameState::Drawing {
@@ -383,9 +381,9 @@ async fn game_loop(lobby: &Lobby, mut rx: mpsc::Receiver<GameLoop>) -> Result<()
                     {
                         *seconds_remaining = seconds_remaining.saturating_sub(seconds);
                         if NOTIFY_TIME_REMAINING_AT.contains(seconds_remaining) {
-                            tx_broadcast.send(Broadcast::Everyone(Game::Guess(
-                                Guess::SecondsLeft(*seconds_remaining),
-                            )))?;
+                            tx.send(Broadcast::Everyone(Game::Guess(Guess::SecondsLeft(
+                                *seconds_remaining,
+                            ))))?;
                         }
                     }
                 }
@@ -417,7 +415,7 @@ async fn game_loop(lobby: &Lobby, mut rx: mpsc::Receiver<GameLoop>) -> Result<()
                         if *seconds_remaining == 0 {
                             let guess = Guess::TimeExpired(word.clone());
                             guesses.push(guess.clone());
-                            tx_broadcast.send(Broadcast::Everyone(Game::Guess(guess)))?;
+                            tx.send(Broadcast::Everyone(Game::Guess(guess)))?;
                         }
                         let players = Arc::make_mut(players.write());
                         for (&user_id, &score) in correct_scores {
@@ -426,7 +424,7 @@ async fn game_loop(lobby: &Lobby, mut rx: mpsc::Receiver<GameLoop>) -> Result<()
                                 .and_modify(|player| player.score += score);
                             let guess = Guess::EarnedPoints(user_id, score);
                             guesses.push(guess.clone());
-                            tx_broadcast.send(Broadcast::Everyone(Game::Guess(guess)))?;
+                            tx.send(Broadcast::Everyone(Game::Guess(guess)))?;
                         }
                         let player_count = players.len() as u32;
                         if let Some(drawer) = players.get_mut(drawing) {
@@ -467,16 +465,16 @@ async fn game_loop(lobby: &Lobby, mut rx: mpsc::Receiver<GameLoop>) -> Result<()
                 *Arc::make_mut(game_state.write()) = GameState::ChoosingWords { choosing, words };
                 let guess = Guess::NowChoosing(choosing);
                 guesses.push(guess.clone());
-                tx_broadcast.send(Broadcast::Everyone(Game::Guess(guess)))?;
+                tx.send(Broadcast::Everyone(Game::Guess(guess)))?;
             }
             None => {}
         }
 
         if let Some(players) = players.reset_if_changed() {
-            tx_broadcast.send(Broadcast::Everyone(Game::Players(players.clone())))?;
+            tx.send(Broadcast::Everyone(Game::Players(players.clone())))?;
         }
         if let Some(game_state) = game_state.reset_if_changed() {
-            tx_broadcast.send(Broadcast::Everyone(Game::Game(game_state.clone())))?;
+            tx.send(Broadcast::Everyone(Game::Game(game_state.clone())))?;
         }
     }
 }
