@@ -157,6 +157,11 @@ enum GameLoop {
     SecondsElapsed(u8),
 }
 
+#[test]
+fn gameloop_size() {
+    assert_eq!(std::mem::size_of::<GameLoop>(), 64);
+}
+
 #[derive(Debug, Clone)]
 enum Broadcast {
     Everyone(Game),
