@@ -5,13 +5,14 @@ use crate::component;
 use crate::util::NeqAssign;
 use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::game::{Canvas, Game, GameReq, GameState, Player};
-use ferrogallic_shared::config::{CANVAS_HEIGHT, CANVAS_WIDTH};
+use ferrogallic_shared::config::{CANVAS_HEIGHT, CANVAS_WIDTH, GUESS_SECONDS};
 use ferrogallic_shared::domain::{
     Color, Epoch, Guess, Lobby, Lowercase, Nickname, Tool, U12Pair, UserId,
 };
 use gloo::events::{EventListener, EventListenerOptions};
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use time::Duration;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{CanvasRenderingContext2d, Element, HtmlCanvasElement, KeyboardEvent};
 use yew::services::render::{RenderService, RenderTask};
@@ -24,7 +25,7 @@ use yew::{
 pub enum Msg {
     ConnStatus(WebSocketStatus),
     Message(Game),
-    RemovePlayer(UserId, Epoch),
+    RemovePlayer(UserId, Epoch<UserId>),
     ChooseWord(Lowercase),
     SendGuess(Lowercase),
     Pointer(PointerAction),
@@ -341,6 +342,7 @@ impl Component for InGame {
 
         let mut can_draw = false;
         let mut choose_words = None;
+        let mut started = None;
         let mut guess_template = None;
         let _: () = match self.game.as_ref() {
             GameState::WaitingToStart { .. } => {
@@ -355,8 +357,11 @@ impl Component for InGame {
                 drawing,
                 correct_scores: _,
                 word,
-                seconds_remaining: _,
+                epoch: _,
+                started: game_started,
+                timed_out: _,
             } => {
+                started = Some(*game_started);
                 if *drawing == self.nick.user_id() {
                     can_draw = true;
                     guess_template = Some(component::guess_input::Template::reveal_all(&word));
@@ -369,7 +374,12 @@ impl Component for InGame {
         html! {
             <main class="window" style="max-width: 1500px; margin: auto">
                 <div class="title-bar">
-                    <div class="title-bar-text">{"In Game - "}{&self.lobby}</div>
+                    <div class="title-bar-text">
+                        {"In Game - "}{&self.lobby}{" "}
+                        {started.map(|started| html! {
+                            <>{"("}<component::Timer started=started count_down_from=Duration::seconds(i64::from(GUESS_SECONDS))/>{")"}</>
+                         }).unwrap_or_default()}
+                    </div>
                 </div>
                 <article class="window-body" style="display: flex">
                     <section style="flex: 1; height: 804px">

@@ -3,6 +3,7 @@ use crate::domain::{Color, Epoch, Guess, LineWidth, Lobby, Lowercase, Nickname, 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use time::OffsetDateTime;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum Game {
@@ -26,7 +27,7 @@ pub enum GameReq {
     Choose(Lowercase),
     Guess(Lowercase),
     Join(Lobby, Nickname),
-    Remove(UserId, Epoch),
+    Remove(UserId, Epoch<UserId>),
 }
 
 #[test]
@@ -52,7 +53,9 @@ pub enum GameState {
         drawing: UserId,
         correct_scores: BTreeMap<UserId, u32>,
         word: Lowercase,
-        seconds_remaining: u8,
+        epoch: Epoch<GameState>,
+        started: OffsetDateTime,
+        timed_out: bool,
     },
 }
 
@@ -70,7 +73,7 @@ fn gamestate_size() {
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Player {
     pub nick: Nickname,
-    pub epoch: Epoch,
+    pub epoch: Epoch<UserId>,
     pub status: PlayerStatus,
     pub score: u32,
 }

@@ -5,6 +5,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::convert::Infallible;
 use std::fmt;
 use std::hash::{Hash, Hasher};
+use std::marker::PhantomData;
 use std::mem;
 use std::num::NonZeroUsize;
 use std::ops::Deref;
@@ -85,19 +86,35 @@ impl fmt::Display for Lobby {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialEq, Eq)]
-pub struct Epoch(NonZeroUsize);
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Epoch<T>(NonZeroUsize, PhantomData<T>);
 
-impl Epoch {
+impl<T> Copy for Epoch<T> {}
+
+impl<T> Clone for Epoch<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> PartialEq for Epoch<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<T> Eq for Epoch<T> {}
+
+impl<T> Epoch<T> {
     pub fn next() -> Self {
         static NEXT: AtomicUsize = AtomicUsize::new(1);
 
         let epoch = NEXT.fetch_add(1, Ordering::Relaxed);
-        Self(NonZeroUsize::new(epoch).unwrap())
+        Self(NonZeroUsize::new(epoch).unwrap(), PhantomData)
     }
 }
 
-impl fmt::Display for Epoch {
+impl<T> fmt::Display for Epoch<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.0, f)
     }
@@ -144,7 +161,6 @@ pub enum Guess {
     CloseGuess(Lowercase),
     Correct(UserId),
     EarnedPoints(UserId, u32),
-    SecondsLeft(u8),
     TimeExpired(Lowercase),
 }
 
