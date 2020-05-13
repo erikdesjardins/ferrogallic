@@ -1,5 +1,6 @@
 use crate::page;
-use crate::util::{NeqAssign, StrExt};
+use crate::util::NeqAssign;
+use boolinator::Boolinator;
 use ferrogallic_shared::domain::Lowercase;
 use itertools::{EitherOrBoth, Itertools};
 use std::mem;
@@ -160,12 +161,12 @@ impl GuessInput {
             .zip_longest(self.guess.chars())
             .map(|entry| match entry {
                 Both(template, guess) => {
-                    let underlined = "underlined".class_if(template.is_underlined());
-                    let invalid = "invalid".class_if(!template.is_valid(guess));
+                    let underlined = template.is_underlined().as_some("underlined");
+                    let invalid = (!template.is_valid(guess)).as_some("invalid");
                     html! { <span class=("guess-char", underlined, invalid)>{guess}</span> }
                 }
                 Left(template) => {
-                    let underlined = "underlined".class_if(template.is_underlined());
+                    let underlined = template.is_underlined().as_some("underlined");
                     html! { <span class=("guess-char", underlined)>{template.char()}</span> }
                 }
                 Right(guess) => {

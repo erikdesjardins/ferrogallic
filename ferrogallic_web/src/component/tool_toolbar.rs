@@ -1,5 +1,6 @@
 use crate::page;
-use crate::util::{NeqAssign, StrExt};
+use crate::util::NeqAssign;
+use boolinator::Boolinator;
 use ferrogallic_shared::domain::{LineWidth, Tool};
 use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
 
@@ -40,7 +41,7 @@ impl Component for ToolToolbar {
                 let onclick = self
                     .game_link
                     .callback(move |_| page::in_game::Msg::SetTool(tool));
-                let active = "active".class_if(tool == self.tool);
+                let active = (tool == self.tool).as_some("active");
                 let (text, style) = match tool {
                     Tool::Pen(width) => (
                         "⚫",

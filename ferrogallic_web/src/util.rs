@@ -12,17 +12,3 @@ impl<T: PartialEq> NeqAssign for T {
         }
     }
 }
-
-pub trait StrExt {
-    fn class_if(&self, cond: bool) -> &Self;
-}
-
-impl StrExt for str {
-    fn class_if(&self, cond: bool) -> &Self {
-        if cond {
-            self
-        } else {
-            ""
-        }
-    }
-}

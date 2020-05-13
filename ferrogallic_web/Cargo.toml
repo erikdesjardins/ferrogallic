@@ -12,8 +12,9 @@ crate-type = ["cdylib"]
 
 [dependencies]
 anyhow = "1.0"
-ferrogallic_shared = { path = "../ferrogallic_shared" }
+boolinator = "2.4"
 console_error_panic_hook = "0.1"
+ferrogallic_shared = { path = "../ferrogallic_shared" }
 gloo = "0.2"
 itertools = "0.9"
 log = { version = "0.4", features = ["release_max_level_off"] }
@@ -21,8 +22,8 @@ thiserror = "1.0"
 wasm-bindgen = { version = "0.2", features = ["strict-macro"] }
 wasm-logger = "0.2"
 web-sys = { version = "0.3", features = ["Window", "Location", "HtmlCanvasElement", "CanvasRenderingContext2d", "Element", "DomRect", "ImageData", "TouchList", "Touch"] }
-yew = "0.15"
-yew-router = "0.12.1"
+yew = "0.16"
+yew-router = "0.13"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
