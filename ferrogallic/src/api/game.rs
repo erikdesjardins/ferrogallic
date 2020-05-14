@@ -13,6 +13,7 @@ use rand::thread_rng;
 use std::cell::Cell;
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, HashMap};
+use std::mem;
 use std::sync::Arc;
 use strsim::levenshtein;
 use time::OffsetDateTime;
@@ -255,10 +256,6 @@ impl From<mpsc::error::SendError<(GameLoop, Instant)>> for GameLoopError {
     }
 }
 
-enum Transition {
-    ChoosingWords { previously_drawing: Option<UserId> },
-}
-
 async fn game_loop(
     lobby: &Lobby,
     mut tx_self_delayed: mpsc::Sender<(GameLoop, Instant)>,
@@ -309,117 +306,88 @@ async fn game_loop(
                 }
             }
             GameLoop::Message(user_id, epoch, req) => {
-                let players_ = players.read().as_ref();
-                match players_.get(&user_id) {
-                    Some(player) if player.epoch == epoch => match req {
-                        GameReq::Canvas(event) => {
-                            canvas_events.push(event);
-                            tx.send(Broadcast::Exclude(user_id, Game::Canvas(event)))?;
+                let player = match players.read().get(&user_id) {
+                    Some(player) if player.epoch == epoch => player,
+                    _ => {
+                        tx.send(Broadcast::Kill(user_id, epoch))?;
+                        continue;
+                    }
+                };
+                let state = game_state.read().as_ref();
+                match (req, state) {
+                    (GameReq::Canvas(event), _) => {
+                        (&tx, &mut canvas_events).send(user_id, event)?;
+                        continue;
+                    }
+                    (GameReq::Choose(word), GameState::ChoosingWords { choosing, words })
+                        if *choosing == user_id && words.contains(&word) =>
+                    {
+                        let drawing = *choosing;
+                        trans_to_drawing(
+                            &tx,
+                            &mut tx_self_delayed,
+                            Arc::make_mut(game_state.write()),
+                            &mut canvas_events,
+                            &mut guesses,
+                            drawing,
+                            word,
+                        )
+                        .await?;
+                    }
+                    (GameReq::Guess(guess), state) => match state {
+                        GameState::WaitingToStart => match guess.as_ref() {
+                            "start" => trans_to_choosing(
+                                &tx,
+                                players.read(),
+                                Arc::make_mut(game_state.write()),
+                                &mut guesses,
+                                None,
+                            )?,
+                            _ => (&tx, &mut guesses).send(Guess::Message(user_id, guess))?,
+                        },
+                        GameState::ChoosingWords { .. } => {
+                            (&tx, &mut guesses).send(Guess::Message(user_id, guess))?;
                         }
-                        GameReq::Choose(word) => {
-                            let game_state_ = game_state.read().as_ref();
-                            match game_state_ {
-                                GameState::ChoosingWords { choosing, words }
-                                    if *choosing == user_id && words.contains(&word) =>
+                        GameState::Drawing {
+                            drawing,
+                            correct,
+                            word,
+                            epoch: _,
+                            started,
+                        } => {
+                            if *drawing == user_id || correct.contains_key(&user_id) {
+                                (&tx, &mut guesses).send(Guess::Message(user_id, guess))?;
+                            } else if guess == *word {
+                                let elapsed = OffsetDateTime::now_utc() - *started;
+                                if let GameState::Drawing { correct, .. } =
+                                    Arc::make_mut(game_state.write())
                                 {
-                                    let drawing = *choosing;
-                                    let game_epoch = Epoch::next();
-                                    let started = OffsetDateTime::now_utc();
-                                    let will_end =
-                                        Instant::now() + Duration::from_secs(GUESS_SECONDS.into());
-                                    *Arc::make_mut(game_state.write()) = GameState::Drawing {
-                                        drawing,
-                                        correct_scores: Default::default(),
-                                        word,
-                                        epoch: game_epoch,
-                                        started,
-                                        timed_out: false,
-                                    };
-                                    tx_self_delayed
-                                        .send((GameLoop::GameEnd(game_epoch), will_end))
-                                        .await?;
-                                    let guess = Guess::NowDrawing(drawing);
-                                    guesses.push(guess.clone());
-                                    tx.send(Broadcast::Everyone(Game::Guess(guess)))?;
-                                    canvas_events.clear();
-                                    tx.send(Broadcast::Everyone(Game::Canvas(Canvas::Clear)))?;
+                                    correct.insert(user_id, guesser_score(elapsed));
                                 }
-                                gs => {
-                                    let nick = &player.nick;
-                                    log::warn!(
-                                        "Lobby={} Player={} invalid choose: {:?}",
-                                        lobby,
-                                        nick,
-                                        gs
-                                    );
-                                    tx.send(Broadcast::Kill(user_id, epoch))?;
+                                (&tx, &mut guesses).send(Guess::Correct(user_id))?;
+                            } else {
+                                if levenshtein(&guess, word) <= CLOSE_GUESS_LEVENSHTEIN {
+                                    tx.send(Broadcast::Only(
+                                        user_id,
+                                        Game::Guess(Guess::CloseGuess(guess.clone())),
+                                    ))?;
                                 }
+                                (&tx, &mut guesses).send(Guess::Guess(user_id, guess))?;
                             }
-                        }
-                        GameReq::Guess(guess) => {
-                            let guess = match game_state.read().as_ref() {
-                                GameState::WaitingToStart { .. } => match guess.as_ref() {
-                                    "start" => {
-                                        if let GameState::WaitingToStart { starting } =
-                                            Arc::make_mut(game_state.write())
-                                        {
-                                            *starting = true;
-                                        }
-                                        Guess::System("Starting game...".into())
-                                    }
-                                    _ => Guess::Message(user_id, guess),
-                                },
-                                GameState::ChoosingWords { .. } => Guess::Message(user_id, guess),
-                                GameState::Drawing {
-                                    drawing,
-                                    correct_scores,
-                                    word,
-                                    epoch: _,
-                                    started,
-                                    timed_out: _,
-                                } => {
-                                    if *drawing == user_id || correct_scores.contains_key(&user_id)
-                                    {
-                                        Guess::Message(user_id, guess)
-                                    } else if guess == *word {
-                                        let elapsed = OffsetDateTime::now_utc() - *started;
-                                        if let GameState::Drawing { correct_scores, .. } =
-                                            Arc::make_mut(game_state.write())
-                                        {
-                                            correct_scores.insert(user_id, guesser_score(elapsed));
-                                        }
-                                        Guess::Correct(user_id)
-                                    } else {
-                                        if levenshtein(&guess, word) <= CLOSE_GUESS_LEVENSHTEIN {
-                                            tx.send(Broadcast::Only(
-                                                user_id,
-                                                Game::Guess(Guess::CloseGuess(guess.clone())),
-                                            ))?;
-                                        }
-
-                                        Guess::Guess(user_id, guess)
-                                    }
-                                }
-                            };
-                            guesses.push(guess.clone());
-                            tx.send(Broadcast::Everyone(Game::Guess(guess)))?;
-                        }
-                        GameReq::Remove(remove_uid, remove_epoch) => {
-                            if let Entry::Occupied(entry) =
-                                Arc::make_mut(players.write()).entry(remove_uid)
-                            {
-                                if entry.get().epoch == remove_epoch {
-                                    let removed = entry.remove();
-                                    log::info!("Lobby={} Player={} removed", lobby, removed.nick);
-                                }
-                            }
-                        }
-                        GameReq::Join(..) => {
-                            log::warn!("Lobby={} Player={} invalid: {:?}", lobby, player.nick, req);
-                            tx.send(Broadcast::Kill(user_id, epoch))?;
                         }
                     },
-                    _ => {
+                    (GameReq::Remove(remove_uid, remove_epoch), _) => {
+                        if let Entry::Occupied(entry) =
+                            Arc::make_mut(players.write()).entry(remove_uid)
+                        {
+                            if entry.get().epoch == remove_epoch {
+                                let removed = entry.remove();
+                                log::info!("Lobby={} Player={} removed", lobby, removed.nick);
+                            }
+                        }
+                    }
+                    (req @ GameReq::Choose(..), _) | (req @ GameReq::Join(..), _) => {
+                        log::warn!("Lobby={} Player={} invalid: {:?}", lobby, player.nick, req);
                         tx.send(Broadcast::Kill(user_id, epoch))?;
                     }
                 }
@@ -437,105 +405,179 @@ async fn game_loop(
             GameLoop::GameEnd(ended_epoch) => {
                 if let GameState::Drawing { epoch, .. } = game_state.read().as_ref() {
                     if *epoch == ended_epoch {
-                        if let GameState::Drawing { timed_out, .. } =
-                            Arc::make_mut(game_state.write())
+                        let game_state = Arc::make_mut(game_state.write());
+                        if let GameState::Drawing {
+                            drawing,
+                            correct,
+                            word,
+                            ..
+                        } = game_state
                         {
-                            *timed_out = true;
+                            (&tx, &mut guesses).send(Guess::TimeExpired(word.clone()))?;
+                            let drawing = *drawing;
+                            let correct = mem::take(correct);
+                            trans_at_round_end(
+                                &tx,
+                                Arc::make_mut(players.write()),
+                                game_state,
+                                &mut guesses,
+                                drawing,
+                                correct,
+                            )?;
                         }
                     }
                 }
             }
         }
 
-        let transition = if game_state.is_changed() {
-            match game_state.read().as_ref() {
-                GameState::WaitingToStart { starting: true } => Some(Transition::ChoosingWords {
-                    previously_drawing: None,
-                }),
-                GameState::WaitingToStart { starting: false } => None,
-                GameState::ChoosingWords {
-                    choosing: _,
-                    words: _,
-                } => None,
-                GameState::Drawing {
-                    drawing,
-                    correct_scores,
-                    word,
-                    epoch: _,
-                    started: _,
-                    timed_out,
-                } => {
-                    if *timed_out
-                        || players
-                            .read()
-                            .keys()
-                            .all(|uid| drawing == uid || correct_scores.contains_key(uid))
+        if players.is_changed() || game_state.is_changed() {
+            if let GameState::Drawing {
+                drawing, correct, ..
+            } = game_state.read().as_ref()
+            {
+                if players
+                    .read()
+                    .keys()
+                    .all(|uid| drawing == uid || correct.contains_key(uid))
+                {
+                    let game_state = Arc::make_mut(game_state.write());
+                    if let GameState::Drawing {
+                        drawing, correct, ..
+                    } = game_state
                     {
-                        if *timed_out {
-                            let guess = Guess::TimeExpired(word.clone());
-                            guesses.push(guess.clone());
-                            tx.send(Broadcast::Everyone(Game::Guess(guess)))?;
-                        }
-                        let players = Arc::make_mut(players.write());
-                        for (&user_id, &score) in correct_scores {
-                            players
-                                .entry(user_id)
-                                .and_modify(|player| player.score += score);
-                            let guess = Guess::EarnedPoints(user_id, score);
-                            guesses.push(guess.clone());
-                            tx.send(Broadcast::Everyone(Game::Guess(guess)))?;
-                        }
-                        let player_count = players.len() as u32;
-                        if let Some(drawer) = players.get_mut(drawing) {
-                            drawer.score +=
-                                drawer_score(correct_scores.values().copied(), player_count);
-                        }
-                        Some(Transition::ChoosingWords {
-                            previously_drawing: Some(*drawing),
-                        })
-                    } else {
-                        None
+                        let drawing = *drawing;
+                        let correct = mem::take(correct);
+                        trans_at_round_end(
+                            &tx,
+                            Arc::make_mut(players.write()),
+                            game_state,
+                            &mut guesses,
+                            drawing,
+                            correct,
+                        )?;
                     }
                 }
             }
-        } else {
-            None
-        };
-
-        match transition {
-            Some(Transition::ChoosingWords { previously_drawing }) => {
-                let choosing = players
-                    .read()
-                    .keys()
-                    // first player after the previous drawer...
-                    .skip_while(|uid| Some(**uid) != previously_drawing)
-                    .nth(1)
-                    // ...or the first player in the list
-                    .or_else(|| players.read().keys().next());
-                let choosing = match choosing {
-                    Some(choosing) => *choosing,
-                    None => return Err(GameLoopError::NoConnectionsDuringStateChange),
-                };
-                let words = words::GAME
-                    .choose_multiple(&mut thread_rng(), NUMBER_OF_WORDS_TO_CHOOSE)
-                    .copied()
-                    .map(Lowercase::new)
-                    .collect();
-                *Arc::make_mut(game_state.write()) = GameState::ChoosingWords { choosing, words };
-                let guess = Guess::NowChoosing(choosing);
-                guesses.push(guess.clone());
-                tx.send(Broadcast::Everyone(Game::Guess(guess)))?;
-            }
-            None => {}
         }
 
         if let Some(players) = players.reset_if_changed() {
             tx.send(Broadcast::Everyone(Game::Players(players.clone())))?;
         }
-        if let Some(game_state) = game_state.reset_if_changed() {
-            tx.send(Broadcast::Everyone(Game::Game(game_state.clone())))?;
+        if let Some(state) = game_state.reset_if_changed() {
+            tx.send(Broadcast::Everyone(Game::Game(state.clone())))?;
         }
     }
+}
+
+trait CanvasExt {
+    fn send(self, user_id: UserId, event: Canvas) -> Result<(), GameLoopError>;
+
+    fn clear(self) -> Result<(), GameLoopError>;
+}
+
+impl CanvasExt for (&broadcast::Sender<Broadcast>, &mut Vec<Canvas>) {
+    fn send(self, user_id: UserId, event: Canvas) -> Result<(), GameLoopError> {
+        self.1.push(event);
+        self.0
+            .send(Broadcast::Exclude(user_id, Game::Canvas(event)))?;
+        Ok(())
+    }
+
+    fn clear(self) -> Result<(), GameLoopError> {
+        self.1.clear();
+        self.0
+            .send(Broadcast::Everyone(Game::Canvas(Canvas::Clear)))?;
+        Ok(())
+    }
+}
+
+trait GuessExt {
+    fn send(self, guess: Guess) -> Result<(), GameLoopError>;
+}
+
+impl GuessExt for (&broadcast::Sender<Broadcast>, &mut Vec<Guess>) {
+    fn send(self, guess: Guess) -> Result<(), GameLoopError> {
+        self.1.push(guess.clone());
+        self.0.send(Broadcast::Everyone(Game::Guess(guess)))?;
+        Ok(())
+    }
+}
+
+fn trans_to_choosing(
+    tx: &broadcast::Sender<Broadcast>,
+    players: &BTreeMap<UserId, Player>,
+    game_state: &mut GameState,
+    guesses: &mut Vec<Guess>,
+    previously_drawing: Option<UserId>,
+) -> Result<(), GameLoopError> {
+    let choosing = players
+        .keys()
+        // first player after the previous drawer...
+        .skip_while(|uid| Some(**uid) != previously_drawing)
+        .nth(1)
+        // ...or the first player in the list
+        .or_else(|| players.keys().next());
+    let choosing = match choosing {
+        Some(choosing) => *choosing,
+        None => return Err(GameLoopError::NoConnectionsDuringStateChange),
+    };
+    let words = words::GAME
+        .choose_multiple(&mut thread_rng(), NUMBER_OF_WORDS_TO_CHOOSE)
+        .copied()
+        .map(Lowercase::new)
+        .collect();
+    *game_state = GameState::ChoosingWords { choosing, words };
+    (tx, guesses).send(Guess::NowChoosing(choosing))?;
+    Ok(())
+}
+
+async fn trans_to_drawing(
+    tx: &broadcast::Sender<Broadcast>,
+    tx_self_delayed: &mut mpsc::Sender<(GameLoop, Instant)>,
+    game_state: &mut GameState,
+    canvas_events: &mut Vec<Canvas>,
+    guesses: &mut Vec<Guess>,
+    drawing: UserId,
+    word: Lowercase,
+) -> Result<(), GameLoopError> {
+    let game_epoch = Epoch::next();
+    let started = OffsetDateTime::now_utc();
+    let will_end = Instant::now() + Duration::from_secs(GUESS_SECONDS.into());
+    *game_state = GameState::Drawing {
+        drawing,
+        correct: Default::default(),
+        word,
+        epoch: game_epoch,
+        started,
+    };
+    (tx, guesses).send(Guess::NowDrawing(drawing))?;
+    (tx, canvas_events).clear()?;
+    tx_self_delayed
+        .send((GameLoop::GameEnd(game_epoch), will_end))
+        .await?;
+    Ok(())
+}
+
+fn trans_at_round_end(
+    tx: &broadcast::Sender<Broadcast>,
+    players: &mut BTreeMap<UserId, Player>,
+    game_state: &mut GameState,
+    guesses: &mut Vec<Guess>,
+    drawing: UserId,
+    correct: BTreeMap<UserId, u32>,
+) -> Result<(), GameLoopError> {
+    for (&user_id, &score) in &correct {
+        if let Some(player) = players.get_mut(&user_id) {
+            player.score += score;
+        }
+        (tx, &mut *guesses).send(Guess::EarnedPoints(user_id, score))?;
+    }
+    let drawer_score = drawer_score(correct.values().copied(), players.len() as u32);
+    if let Some(drawer) = players.get_mut(&drawing) {
+        drawer.score += drawer_score;
+    }
+    trans_to_choosing(tx, players, game_state, guesses, Some(drawing))?;
+    Ok(())
 }
 
 fn guesser_score(elapsed: time::Duration) -> u32 {

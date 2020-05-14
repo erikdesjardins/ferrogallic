@@ -42,26 +42,23 @@ impl WsEndpoint for Game {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum GameState {
-    WaitingToStart {
-        starting: bool,
-    },
+    WaitingToStart,
     ChoosingWords {
         choosing: UserId,
         words: Arc<[Lowercase]>,
     },
     Drawing {
         drawing: UserId,
-        correct_scores: BTreeMap<UserId, u32>,
+        correct: BTreeMap<UserId, u32>,
         word: Lowercase,
         epoch: Epoch<GameState>,
         started: OffsetDateTime,
-        timed_out: bool,
     },
 }
 
 impl Default for GameState {
     fn default() -> Self {
-        Self::WaitingToStart { starting: false }
+        Self::WaitingToStart
     }
 }
 

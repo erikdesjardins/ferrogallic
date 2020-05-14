@@ -345,7 +345,7 @@ impl Component for InGame {
         let mut started = None;
         let mut guess_template = None;
         let _: () = match self.game.as_ref() {
-            GameState::WaitingToStart { .. } => {
+            GameState::WaitingToStart => {
                 can_draw = true;
             }
             GameState::ChoosingWords { choosing, words } => {
@@ -355,11 +355,10 @@ impl Component for InGame {
             }
             GameState::Drawing {
                 drawing,
-                correct_scores: _,
+                correct: _,
                 word,
                 epoch: _,
                 started: game_started,
-                timed_out: _,
             } => {
                 started = Some(*game_started);
                 if *drawing == self.nick.user_id() {
@@ -476,7 +475,7 @@ impl InGame {
         self.scheduled_render = None;
         if let Some(canvas) = &mut self.canvas {
             if let Err(e) = canvas.vr.render_to(&canvas.context) {
-                log::warn!("Failed to render to canvas: {:?}", e);
+                log::error!("Failed to render to canvas: {:?}", e);
             }
         }
     }
