@@ -266,7 +266,7 @@ async fn game_loop(
     let mut players = Invalidate::new(Arc::new(BTreeMap::new()));
     let mut game_state = Invalidate::new(Arc::new(GameState::default()));
     let mut canvas_events = Vec::new();
-    let mut guesses = Vec::new();
+    let mut guesses = vec![Guess::System("Type 'start' to start the game.".into())];
 
     loop {
         let msg = match rx.recv().await {
