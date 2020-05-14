@@ -62,11 +62,6 @@ impl Default for GameState {
     }
 }
 
-#[test]
-fn gamestate_size() {
-    assert_eq!(std::mem::size_of::<GameState>(), 56);
-}
-
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Player {
     pub nick: Nickname,
