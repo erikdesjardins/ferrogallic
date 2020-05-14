@@ -164,6 +164,11 @@ pub enum Guess {
     TimeExpired(Lowercase),
 }
 
+#[test]
+fn guess_size() {
+    assert_eq!(std::mem::size_of::<Guess>(), 32);
+}
+
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub enum LineWidth {
     Small,
