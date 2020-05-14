@@ -1,11 +1,13 @@
 use crate::page;
-use crate::util::{NeqAssign, StrExt};
+use crate::util::NeqAssign;
+use boolinator::Boolinator;
+use ferrogallic_shared::domain::Lowercase;
 use itertools::{EitherOrBoth, Itertools};
 use std::mem;
 use yew::{html, Component, ComponentLink, Event, Html, InputData, Properties, ShouldRender};
 
 pub enum Msg {
-    SetGuess(String),
+    SetGuess(Lowercase),
     Submit,
 }
 
@@ -19,7 +21,7 @@ pub struct GuessInput {
     link: ComponentLink<Self>,
     game_link: ComponentLink<page::InGame>,
     guess_template: Option<Template>,
-    guess: String,
+    guess: Lowercase,
 }
 
 impl Component for GuessInput {
@@ -64,7 +66,9 @@ impl Component for GuessInput {
     }
 
     fn view(&self) -> Html {
-        let on_change_guess = self.link.callback(|e: InputData| Msg::SetGuess(e.value));
+        let on_change_guess = self
+            .link
+            .callback(|e: InputData| Msg::SetGuess(Lowercase::new(e.value)));
         let on_submit = self.link.callback(|e: Event| {
             e.prevent_default();
             Msg::Submit
@@ -157,12 +161,12 @@ impl GuessInput {
             .zip_longest(self.guess.chars())
             .map(|entry| match entry {
                 Both(template, guess) => {
-                    let underlined = "underlined".class_if(template.is_underlined());
-                    let invalid = "invalid".class_if(!template.is_valid(guess));
+                    let underlined = template.is_underlined().as_some("underlined");
+                    let invalid = (!template.is_valid(guess)).as_some("invalid");
                     html! { <span class=("guess-char", underlined, invalid)>{guess}</span> }
                 }
                 Left(template) => {
-                    let underlined = "underlined".class_if(template.is_underlined());
+                    let underlined = template.is_underlined().as_some("underlined");
                     html! { <span class=("guess-char", underlined)>{template.char()}</span> }
                 }
                 Right(guess) => {

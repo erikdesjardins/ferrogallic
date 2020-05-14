@@ -5,11 +5,14 @@ use crate::component;
 use crate::util::NeqAssign;
 use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::game::{Canvas, Game, GameReq, GameState, Player};
-use ferrogallic_shared::config::{CANVAS_HEIGHT, CANVAS_WIDTH};
-use ferrogallic_shared::domain::{Color, Epoch, Guess, Lobby, Nickname, Tool, UserId};
+use ferrogallic_shared::config::{CANVAS_HEIGHT, CANVAS_WIDTH, GUESS_SECONDS};
+use ferrogallic_shared::domain::{
+    Color, Epoch, Guess, I12Pair, Lobby, Lowercase, Nickname, Tool, UserId,
+};
 use gloo::events::{EventListener, EventListenerOptions};
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use time::Duration;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{CanvasRenderingContext2d, Element, HtmlCanvasElement, KeyboardEvent};
 use yew::services::render::{RenderService, RenderTask};
@@ -22,9 +25,9 @@ use yew::{
 pub enum Msg {
     ConnStatus(WebSocketStatus),
     Message(Game),
-    RemovePlayer(UserId, Epoch),
-    ChooseWord(Arc<str>),
-    SendGuess(String),
+    RemovePlayer(UserId, Epoch<UserId>),
+    ChooseWord(Lowercase),
+    SendGuess(Lowercase),
     Pointer(PointerAction),
     Undo,
     Render,
@@ -35,9 +38,9 @@ pub enum Msg {
 }
 
 pub enum PointerAction {
-    Down((u16, u16)),
-    Move((u16, u16)),
-    Up((u16, u16)),
+    Down(I12Pair),
+    Move(I12Pair),
+    Up(I12Pair),
 }
 
 #[derive(Clone, Properties)]
@@ -63,7 +66,7 @@ pub struct InGame {
     color: Color,
     players: Arc<BTreeMap<UserId, Player>>,
     game: Arc<GameState>,
-    guesses: Arc<Vec<Arc<Guess>>>,
+    guesses: Arc<Vec<Guess>>,
 }
 
 struct CanvasState {
@@ -76,7 +79,7 @@ struct CanvasState {
 #[derive(Copy, Clone)]
 enum PointerState {
     Up,
-    Down { at: (u16, u16) },
+    Down { at: I12Pair },
 }
 
 impl Component for InGame {
@@ -109,10 +112,7 @@ impl Component for InGame {
             Msg::ConnStatus(status) => match status {
                 WebSocketStatus::Opened => {
                     if let Some(ws) = &mut self.active_ws {
-                        ws.send_api(&GameReq::Join {
-                            lobby: self.lobby.clone(),
-                            nick: self.nick.clone(),
-                        });
+                        ws.send_api(&GameReq::Join(self.lobby.clone(), self.nick.clone()));
                     }
                     false
                 }
@@ -162,21 +162,19 @@ impl Component for InGame {
             },
             Msg::RemovePlayer(user_id, epoch) => {
                 if let Some(ws) = &mut self.active_ws {
-                    ws.send_api(&GameReq::Remove { user_id, epoch });
+                    ws.send_api(&GameReq::Remove(user_id, epoch));
                 }
                 false
             }
             Msg::ChooseWord(word) => {
                 if let Some(ws) = &mut self.active_ws {
-                    ws.send_api(&GameReq::Choose { word });
+                    ws.send_api(&GameReq::Choose(word));
                 }
                 false
             }
             Msg::SendGuess(guess) => {
                 if let Some(ws) = &mut self.active_ws {
-                    ws.send_api(&GameReq::Guess {
-                        guess: guess.into_boxed_str(),
-                    });
+                    ws.send_api(&GameReq::Guess(guess));
                 }
                 false
             }
@@ -235,7 +233,7 @@ impl Component for InGame {
                     self.render_to_virtual(event);
                     self.schedule_render_to_canvas();
                     if let Some(ws) = &mut self.active_ws {
-                        ws.send_api(&GameReq::Canvas { event });
+                        ws.send_api(&GameReq::Canvas(event));
                     }
                 }
                 false
@@ -245,7 +243,7 @@ impl Component for InGame {
                 self.render_to_virtual(event);
                 self.schedule_render_to_canvas();
                 if let Some(ws) = &mut self.active_ws {
-                    ws.send_api(&GameReq::Canvas { event });
+                    ws.send_api(&GameReq::Canvas(event));
                 }
                 false
             }
@@ -337,17 +335,29 @@ impl Component for InGame {
     }
 
     fn view(&self) -> Html {
-        let on_pointer_down =
-            self.handle_pointer_event_if(|e| e.buttons() == 1, PointerAction::Down);
-        let on_pointer_move = self.handle_pointer_event(PointerAction::Move);
-        let on_pointer_up = self.handle_pointer_event(PointerAction::Up);
+        let on_pointer_down = self.handle_pointer_event_if(
+            |e| e.buttons() == 1,
+            |e, target, at| {
+                if let Err(e) = target.set_pointer_capture(e.pointer_id()) {
+                    log::warn!("Failed to set pointer capture: {:?}", e);
+                }
+                PointerAction::Down(at)
+            },
+        );
+        let on_pointer_move = self.handle_pointer_event(|_, _, at| PointerAction::Move(at));
+        let on_pointer_up = self.handle_pointer_event(|e, target, at| {
+            if let Err(e) = target.release_pointer_capture(e.pointer_id()) {
+                log::warn!("Failed to release pointer capture: {:?}", e);
+            }
+            PointerAction::Up(at)
+        });
 
         let mut can_draw = false;
         let mut choose_words = None;
-        let mut timer = None;
+        let mut started = None;
         let mut guess_template = None;
         let _: () = match self.game.as_ref() {
-            GameState::WaitingToStart { .. } => {
+            GameState::WaitingToStart => {
                 can_draw = true;
             }
             GameState::ChoosingWords { choosing, words } => {
@@ -357,11 +367,12 @@ impl Component for InGame {
             }
             GameState::Drawing {
                 drawing,
-                correct_scores: _,
+                correct: _,
                 word,
-                seconds_remaining,
+                epoch: _,
+                started: game_started,
             } => {
-                timer = Some(*seconds_remaining);
+                started = Some(*game_started);
                 if *drawing == self.nick.user_id() {
                     can_draw = true;
                     guess_template = Some(component::guess_input::Template::reveal_all(&word));
@@ -374,13 +385,15 @@ impl Component for InGame {
         html! {
             <main class="window" style="max-width: 1500px; margin: auto">
                 <div class="title-bar">
-                    <div class="title-bar-text">{"In Game - "}{&self.lobby}{match timer {
-                        Some(seconds_remaining) => html! { <>{" ("}{seconds_remaining}{"s)"}</> },
-                        None => html! {},
-                    }}</div>
+                    <div class="title-bar-text">
+                        {"In Game - "}{&self.lobby}{" "}
+                        {started.map(|started| html! {
+                            <>{"("}<component::Timer started=started count_down_from=Duration::seconds(i64::from(GUESS_SECONDS))/>{")"}</>
+                         }).unwrap_or_default()}
+                    </div>
                 </div>
                 <article class="window-body" style="display: flex">
-                    <section style="flex: 1; height: 755px">
+                    <section style="flex: 1; height: 804px">
                         <component::Players game_link=self.link.clone() players=self.players.clone()/>
                     </section>
                     <section style="margin: 0 8px; position: relative">
@@ -390,8 +403,7 @@ impl Component for InGame {
                                 style=if can_draw { "" } else { "pointer-events: none" }
                                 onpointerdown=on_pointer_down
                                 onpointermove=on_pointer_move
-                                onpointerup=&on_pointer_up
-                                onpointerleave=on_pointer_up
+                                onpointerup=on_pointer_up
                                 width=CANVAS_WIDTH
                                 height=CANVAS_HEIGHT
                             />
@@ -411,7 +423,7 @@ impl Component for InGame {
                             None => html! {},
                         }}
                     </section>
-                    <section style="flex: 1; height: 755px; display: flex; flex-direction: column">
+                    <section style="flex: 1; height: 804px; display: flex; flex-direction: column">
                         <div style="flex: 1; min-height: 0">
                             <component::GuessArea players=self.players.clone() guesses=self.guesses.clone()/>
                         </div>
@@ -426,7 +438,7 @@ impl Component for InGame {
 impl InGame {
     fn handle_pointer_event(
         &self,
-        f: impl Fn((u16, u16)) -> PointerAction + 'static,
+        f: impl Fn(&PointerEvent, &Element, I12Pair) -> PointerAction + 'static,
     ) -> Callback<PointerEvent> {
         self.handle_pointer_event_if(|_| true, f)
     }
@@ -434,20 +446,23 @@ impl InGame {
     fn handle_pointer_event_if(
         &self,
         pred: impl Fn(&PointerEvent) -> bool + 'static,
-        f: impl Fn((u16, u16)) -> PointerAction + 'static,
+        f: impl Fn(&PointerEvent, &Element, I12Pair) -> PointerAction + 'static,
     ) -> Callback<PointerEvent> {
         self.link.callback(move |e: PointerEvent| {
             if pred(&e) {
-                match e.target().and_then(|t| t.dyn_into::<Element>().ok()) {
-                    Some(target) => {
-                        e.prevent_default();
-                        let origin = target.get_bounding_client_rect();
-                        Msg::Pointer(f((
-                            (e.client_x() as u16).saturating_sub(origin.x() as u16),
-                            (e.client_y() as u16).saturating_sub(origin.y() as u16),
-                        )))
-                    }
-                    None => Msg::Ignore,
+                if let Some(target) = e.target().and_then(|t| t.dyn_into::<Element>().ok()) {
+                    e.prevent_default();
+                    let origin = target.get_bounding_client_rect();
+                    Msg::Pointer(f(
+                        &e,
+                        &target,
+                        I12Pair::new(
+                            e.client_x() as i16 - origin.x() as i16,
+                            e.client_y() as i16 - origin.y() as i16,
+                        ),
+                    ))
+                } else {
+                    Msg::Ignore
                 }
             } else {
                 Msg::Ignore
@@ -474,7 +489,7 @@ impl InGame {
         self.scheduled_render = None;
         if let Some(canvas) = &mut self.canvas {
             if let Err(e) = canvas.vr.render_to(&canvas.context) {
-                log::warn!("Failed to render to canvas: {:?}", e);
+                log::error!("Failed to render to canvas: {:?}", e);
             }
         }
     }

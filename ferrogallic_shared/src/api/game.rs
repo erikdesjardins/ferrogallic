@@ -1,32 +1,33 @@
 use crate::api::WsEndpoint;
-use crate::domain::{Color, Epoch, Guess, LineWidth, Lobby, Nickname, UserId};
+use crate::domain::{Color, Epoch, Guess, I12Pair, LineWidth, Lobby, Lowercase, Nickname, UserId};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use time::OffsetDateTime;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum Game {
     Canvas(Canvas),
-    CanvasBulk(Vec<Canvas>),
+    Guess(Guess),
     Players(Arc<BTreeMap<UserId, Player>>),
     Game(Arc<GameState>),
-    Guess(Arc<Guess>),
-    GuessBulk(Vec<Arc<Guess>>),
     Heartbeat,
+    CanvasBulk(Vec<Canvas>),
+    GuessBulk(Vec<Guess>),
 }
 
 #[test]
 fn game_size() {
-    assert_eq!(std::mem::size_of::<Game>(), 32);
+    assert_eq!(std::mem::size_of::<Game>(), 40);
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum GameReq {
-    Canvas { event: Canvas },
-    Choose { word: Arc<str> },
-    Guess { guess: Box<str> },
-    Join { lobby: Lobby, nick: Nickname },
-    Remove { user_id: UserId, epoch: Epoch },
+    Canvas(Canvas),
+    Choose(Lowercase),
+    Guess(Lowercase),
+    Join(Lobby, Nickname),
+    Remove(UserId, Epoch<UserId>),
 }
 
 #[test]
@@ -41,36 +42,30 @@ impl WsEndpoint for Game {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum GameState {
-    WaitingToStart {
-        starting: bool,
-    },
+    WaitingToStart,
     ChoosingWords {
         choosing: UserId,
-        words: Arc<[Arc<str>]>,
+        words: Arc<[Lowercase]>,
     },
     Drawing {
         drawing: UserId,
-        correct_scores: BTreeMap<UserId, u32>,
-        word: Arc<str>,
-        seconds_remaining: u8,
+        correct: BTreeMap<UserId, u32>,
+        word: Lowercase,
+        epoch: Epoch<GameState>,
+        started: OffsetDateTime,
     },
 }
 
 impl Default for GameState {
     fn default() -> Self {
-        Self::WaitingToStart { starting: false }
+        Self::WaitingToStart
     }
-}
-
-#[test]
-fn gamestate_size() {
-    assert_eq!(std::mem::size_of::<GameState>(), 56);
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Player {
     pub nick: Nickname,
-    pub epoch: Epoch,
+    pub epoch: Epoch<UserId>,
     pub status: PlayerStatus,
     pub score: u32,
 }
@@ -84,16 +79,21 @@ pub enum PlayerStatus {
 #[derive(Debug, Deserialize, Serialize, Copy, Clone)]
 pub enum Canvas {
     Line {
-        from: (u16, u16),
-        to: (u16, u16),
+        from: I12Pair,
+        to: I12Pair,
         width: LineWidth,
         color: Color,
     },
     Fill {
-        at: (u16, u16),
+        at: I12Pair,
         color: Color,
     },
     PushUndo,
     PopUndo,
     Clear,
+}
+
+#[test]
+fn canvas_size() {
+    assert_eq!(std::mem::size_of::<Canvas>(), 12);
 }

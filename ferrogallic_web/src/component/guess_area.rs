@@ -11,7 +11,7 @@ pub enum Msg {}
 #[derive(Clone, Properties, PartialEq)]
 pub struct Props {
     pub players: Arc<BTreeMap<UserId, Player>>,
-    pub guesses: Arc<Vec<Arc<Guess>>>,
+    pub guesses: Arc<Vec<Guess>>,
 }
 
 pub struct GuessArea {
@@ -66,12 +66,12 @@ mod guess {
     #[derive(Clone, Properties)]
     pub struct Props {
         pub players: Arc<BTreeMap<UserId, Player>>,
-        pub guess: Arc<Guess>,
+        pub guess: Guess,
     }
 
     impl PartialEq for Props {
         fn eq(&self, Self { players, guess }: &Self) -> bool {
-            Arc::ptr_eq(&self.players, players) && Arc::ptr_eq(&self.guess, guess)
+            Arc::ptr_eq(&self.players, players) && &self.guess == guess
         }
     }
 
@@ -104,7 +104,7 @@ mod guess {
                     .unwrap_or("<unknown>")
             };
 
-            match self.props.guess.as_ref() {
+            match &self.props.guess {
                 Guess::System(system) => html! {
                     <li>{"🖥️ "}{system}</li>
                 },
@@ -114,8 +114,14 @@ mod guess {
                 Guess::NowChoosing(user_id) => html! {
                     <li>{"✨ "}{format_user(*user_id)}{" is choosing a word."}</li>
                 },
+                Guess::NowDrawing(user_id) => html! {
+                    <li>{"🖌️ "}{format_user(*user_id)}{" is drawing!"}</li>
+                },
                 Guess::Guess(user_id, guess) => html! {
                     <li>{"❌ "}{format_user(*user_id)}{" guessed '"}{guess}{"'."}</li>
+                },
+                Guess::CloseGuess(guess) => html! {
+                    <li>{"🤏 '"}{guess}{"' is close!"}</li>
                 },
                 Guess::Correct(user_id) => html! {
                     <li>{"✔️ "}{format_user(*user_id)}{" guessed correctly!"}</li>
@@ -123,8 +129,8 @@ mod guess {
                 Guess::EarnedPoints(user_id, points) => html! {
                     <li>{"💵 "}{format_user(*user_id)}{" earned "}{points}{" points."}</li>
                 },
-                Guess::TimeExpired => html! {
-                    <li>{"⏰ Time's up!"}</li>
+                Guess::TimeExpired(word) => html! {
+                    <li>{"⏰ Time's up! The word was '"}{word}{"'."}</li>
                 },
             }
         }

@@ -1,5 +1,6 @@
 use crate::page;
-use crate::util::{NeqAssign, StrExt};
+use crate::util::NeqAssign;
+use boolinator::Boolinator;
 use ferrogallic_shared::domain::Color;
 use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
 
@@ -40,7 +41,7 @@ impl Component for ColorToolbar {
                 let onclick = self
                     .game_link
                     .callback(move |_| page::in_game::Msg::SetColor(color));
-                let active = "active".class_if(color == self.color);
+                let active = (color == self.color).as_some("active");
                 let style = format!(
                     "background-color: rgb({}, {}, {})",
                     color.r, color.g, color.b

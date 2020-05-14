@@ -1,6 +1,6 @@
 [package]
 name = "ferrogallic"
-version = "0.2.2"
+version = "0.3.0"
 authors = ["Erik Desjardins <erikdesjardins@users.noreply.github.com>"]
 description = "Clone of skribble.io."
 repository = "https://github.com/erikdesjardins/ferrogallic"
@@ -16,7 +16,9 @@ futures = "0.3"
 env_logger = { version = "0.7", default-features = false, features = ["humantime"] }
 log = "0.4"
 rand = "0.7"
+strsim = "0.10"
 structopt = { version = "0.3", default-features = false }
+time = { version = "0.2", default-features = false, features = ["std"] }
 tokio = { version = "0.2" , features = ["macros", "rt-threaded", "sync", "time", "parking_lot"] }
 warp = { version = "0.2", default-features = false, features = ["websocket"] }
 
