@@ -366,13 +366,19 @@ async fn game_loop(
                                 }
                                 (&tx, &mut guesses).send(Guess::Correct(user_id))?;
                             } else {
-                                if levenshtein(&guess, word) <= CLOSE_GUESS_LEVENSHTEIN {
+                                let was_close =
+                                    if levenshtein(&guess, word) <= CLOSE_GUESS_LEVENSHTEIN {
+                                        Some(guess.clone())
+                                    } else {
+                                        None
+                                    };
+                                (&tx, &mut guesses).send(Guess::Guess(user_id, guess))?;
+                                if let Some(guess) = was_close {
                                     tx.send(Broadcast::Only(
                                         user_id,
-                                        Game::Guess(Guess::CloseGuess(guess.clone())),
+                                        Game::Guess(Guess::CloseGuess(guess)),
                                     ))?;
                                 }
-                                (&tx, &mut guesses).send(Guess::Guess(user_id, guess))?;
                             }
                         }
                     },
