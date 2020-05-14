@@ -1,5 +1,5 @@
 use crate::api::WsEndpoint;
-use crate::domain::{Color, Epoch, Guess, LineWidth, Lobby, Lowercase, Nickname, U12Pair, UserId};
+use crate::domain::{Color, Epoch, Guess, I12Pair, LineWidth, Lobby, Lowercase, Nickname, UserId};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -79,13 +79,13 @@ pub enum PlayerStatus {
 #[derive(Debug, Deserialize, Serialize, Copy, Clone)]
 pub enum Canvas {
     Line {
-        from: U12Pair,
-        to: U12Pair,
+        from: I12Pair,
+        to: I12Pair,
         width: LineWidth,
         color: Color,
     },
     Fill {
-        at: U12Pair,
+        at: I12Pair,
         color: Color,
     },
     PushUndo,

@@ -41,7 +41,7 @@ impl VirtualCanvas {
                 );
             }
             Canvas::Fill { at, color } => {
-                flood_fill::fill(&mut self.buffer, at.x() as usize, at.y() as usize, color);
+                flood_fill::fill(&mut self.buffer, at.x(), at.y(), color);
             }
             Canvas::PushUndo => {
                 let buffer = self.buffer.clone_boxed();

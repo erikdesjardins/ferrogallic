@@ -3,10 +3,10 @@ use std::convert::TryFrom;
 
 pub fn stroke_line(
     buf: &mut CanvasBuffer,
-    x1: u16,
-    y1: u16,
-    x2: u16,
-    y2: u16,
+    x1: i16,
+    y1: i16,
+    x2: i16,
+    y2: i16,
     width: LineWidth,
     color: Color,
 ) {

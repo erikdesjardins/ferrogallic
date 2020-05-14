@@ -7,7 +7,7 @@ use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::game::{Canvas, Game, GameReq, GameState, Player};
 use ferrogallic_shared::config::{CANVAS_HEIGHT, CANVAS_WIDTH, GUESS_SECONDS};
 use ferrogallic_shared::domain::{
-    Color, Epoch, Guess, Lobby, Lowercase, Nickname, Tool, U12Pair, UserId,
+    Color, Epoch, Guess, I12Pair, Lobby, Lowercase, Nickname, Tool, UserId,
 };
 use gloo::events::{EventListener, EventListenerOptions};
 use std::collections::BTreeMap;
@@ -38,9 +38,9 @@ pub enum Msg {
 }
 
 pub enum PointerAction {
-    Down(U12Pair),
-    Move(U12Pair),
-    Up(U12Pair),
+    Down(I12Pair),
+    Move(I12Pair),
+    Up(I12Pair),
 }
 
 #[derive(Clone, Properties)]
@@ -79,7 +79,7 @@ struct CanvasState {
 #[derive(Copy, Clone)]
 enum PointerState {
     Up,
-    Down { at: U12Pair },
+    Down { at: I12Pair },
 }
 
 impl Component for InGame {
@@ -335,10 +335,22 @@ impl Component for InGame {
     }
 
     fn view(&self) -> Html {
-        let on_pointer_down =
-            self.handle_pointer_event_if(|e| e.buttons() == 1, PointerAction::Down);
-        let on_pointer_move = self.handle_pointer_event(PointerAction::Move);
-        let on_pointer_up = self.handle_pointer_event(PointerAction::Up);
+        let on_pointer_down = self.handle_pointer_event_if(
+            |e| e.buttons() == 1,
+            |e, target, at| {
+                if let Err(e) = target.set_pointer_capture(e.pointer_id()) {
+                    log::warn!("Failed to set pointer capture: {:?}", e);
+                }
+                PointerAction::Down(at)
+            },
+        );
+        let on_pointer_move = self.handle_pointer_event(|_, _, at| PointerAction::Move(at));
+        let on_pointer_up = self.handle_pointer_event(|e, target, at| {
+            if let Err(e) = target.release_pointer_capture(e.pointer_id()) {
+                log::warn!("Failed to release pointer capture: {:?}", e);
+            }
+            PointerAction::Up(at)
+        });
 
         let mut can_draw = false;
         let mut choose_words = None;
@@ -391,8 +403,7 @@ impl Component for InGame {
                                 style=if can_draw { "" } else { "pointer-events: none" }
                                 onpointerdown=on_pointer_down
                                 onpointermove=on_pointer_move
-                                onpointerup=&on_pointer_up
-                                onpointerleave=on_pointer_up
+                                onpointerup=on_pointer_up
                                 width=CANVAS_WIDTH
                                 height=CANVAS_HEIGHT
                             />
@@ -427,7 +438,7 @@ impl Component for InGame {
 impl InGame {
     fn handle_pointer_event(
         &self,
-        f: impl Fn(U12Pair) -> PointerAction + 'static,
+        f: impl Fn(&PointerEvent, &Element, I12Pair) -> PointerAction + 'static,
     ) -> Callback<PointerEvent> {
         self.handle_pointer_event_if(|_| true, f)
     }
@@ -435,20 +446,23 @@ impl InGame {
     fn handle_pointer_event_if(
         &self,
         pred: impl Fn(&PointerEvent) -> bool + 'static,
-        f: impl Fn(U12Pair) -> PointerAction + 'static,
+        f: impl Fn(&PointerEvent, &Element, I12Pair) -> PointerAction + 'static,
     ) -> Callback<PointerEvent> {
         self.link.callback(move |e: PointerEvent| {
             if pred(&e) {
-                match e.target().and_then(|t| t.dyn_into::<Element>().ok()) {
-                    Some(target) => {
-                        e.prevent_default();
-                        let origin = target.get_bounding_client_rect();
-                        Msg::Pointer(f(U12Pair::new(
-                            (e.client_x() as u16).saturating_sub(origin.x() as u16),
-                            (e.client_y() as u16).saturating_sub(origin.y() as u16),
-                        )))
-                    }
-                    None => Msg::Ignore,
+                if let Some(target) = e.target().and_then(|t| t.dyn_into::<Element>().ok()) {
+                    e.prevent_default();
+                    let origin = target.get_bounding_client_rect();
+                    Msg::Pointer(f(
+                        &e,
+                        &target,
+                        I12Pair::new(
+                            e.client_x() as i16 - origin.x() as i16,
+                            e.client_y() as i16 - origin.y() as i16,
+                        ),
+                    ))
+                } else {
+                    Msg::Ignore
                 }
             } else {
                 Msg::Ignore

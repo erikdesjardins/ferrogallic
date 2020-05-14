@@ -1,8 +1,13 @@
 // http://www.adammil.net/blog/v126_A_More_Efficient_Flood_Fill.html
 
 use ferrogallic_shared::domain::{CanvasBuffer, Color};
+use std::convert::TryInto;
 
-pub fn fill(buf: &mut CanvasBuffer, x: usize, y: usize, to: Color) {
+pub fn fill(buf: &mut CanvasBuffer, x: i16, y: i16, to: Color) {
+    let (x, y) = match (x.try_into(), y.try_into()) {
+        (Ok(x), Ok(y)) => (x, y),
+        _ => return,
+    };
     if x < buf.x_len() && y < buf.y_len() {
         let from = buf.get(x, y);
         run_flood_fill(buf, x, y, from, to);

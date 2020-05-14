@@ -248,14 +248,14 @@ impl Tool {
 }
 
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
-pub struct U12Pair {
+pub struct I12Pair {
     bytes: [u8; 3],
 }
 
-impl U12Pair {
-    pub fn new(x: u16, y: u16) -> Self {
-        debug_assert!(x <= 0xfff);
-        debug_assert!(y <= 0xfff);
+impl I12Pair {
+    pub fn new(x: i16, y: i16) -> Self {
+        debug_assert!(-(1 << 11) <= x && x < (1 << 11), "x={} out of range", x);
+        debug_assert!(-(1 << 11) <= y && y < (1 << 11), "y={} out of range", y);
 
         Self {
             bytes: [
@@ -266,12 +266,30 @@ impl U12Pair {
         }
     }
 
-    pub fn x(self) -> u16 {
-        self.bytes[0] as u16 | (self.bytes[1] as u16 & 0xf) << 8
+    pub fn x(self) -> i16 {
+        let unsigned = self.bytes[0] as u16 | (self.bytes[1] as u16 & 0xf) << 8;
+        // sign-extend
+        ((unsigned << 4) as i16) >> 4
     }
 
-    pub fn y(self) -> u16 {
-        (self.bytes[1] as u16) >> 4 | (self.bytes[2] as u16) << 4
+    pub fn y(self) -> i16 {
+        let unsigned = (self.bytes[1] as u16) >> 4 | (self.bytes[2] as u16) << 4;
+        // sign-extend
+        ((unsigned << 4) as i16) >> 4
+    }
+}
+
+#[test]
+fn i12pair_exhaustive() {
+    for x in -(1 << 11)..(1 << 11) {
+        let pair = I12Pair::new(x, 0x7a5);
+        assert_eq!(pair.x(), x);
+        assert_eq!(pair.y(), 0x7a5);
+    }
+    for y in -(1 << 11)..(1 << 11) {
+        let pair = I12Pair::new(0x7a5, y);
+        assert_eq!(pair.x(), 0x7a5);
+        assert_eq!(pair.y(), y);
     }
 }
 
