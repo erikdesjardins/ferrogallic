@@ -10,7 +10,9 @@ pub fn fill(buf: &mut CanvasBuffer, x: i16, y: i16, to: Color) {
     };
     if x < buf.x_len() && y < buf.y_len() {
         let from = buf.get(x, y);
-        run_flood_fill(buf, x, y, from, to);
+        if from != to {
+            run_flood_fill(buf, x, y, from, to);
+        }
     }
 }
 
