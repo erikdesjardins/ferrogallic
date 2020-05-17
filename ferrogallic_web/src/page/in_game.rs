@@ -7,10 +7,11 @@ use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::game::{Canvas, Game, GameReq, GameState, Player};
 use ferrogallic_shared::config::{CANVAS_HEIGHT, CANVAS_WIDTH, GUESS_SECONDS};
 use ferrogallic_shared::domain::{
-    Color, Epoch, Guess, I12Pair, Lobby, Lowercase, Nickname, Tool, UserId,
+    Color, Epoch, Guess, I12Pair, LineWidth, Lobby, Lowercase, Nickname, Tool, UserId,
 };
 use gloo::events::{EventListener, EventListenerOptions};
 use std::collections::BTreeMap;
+use std::mem;
 use std::sync::Arc;
 use time::Duration;
 use wasm_bindgen::{JsCast, JsValue};
@@ -27,10 +28,11 @@ pub enum Msg {
     Message(Game),
     RemovePlayer(UserId, Epoch<UserId>),
     ChooseWord(Lowercase),
-    SendGuess(Lowercase),
     Pointer(PointerAction),
     Undo,
     Render,
+    SetGuess(Lowercase),
+    SendGuess,
     SetTool(Tool),
     SetColor(Color),
     SetGlobalError(Error),
@@ -62,6 +64,7 @@ pub struct InGame {
     canvas_ref: NodeRef,
     canvas: Option<CanvasState>,
     pointer: PointerState,
+    guess: Lowercase,
     tool: Tool,
     color: Color,
     players: Arc<BTreeMap<UserId, Player>>,
@@ -99,6 +102,7 @@ impl Component for InGame {
             canvas_ref: Default::default(),
             canvas: None,
             pointer: PointerState::Up,
+            guess: Default::default(),
             tool: Default::default(),
             color: Default::default(),
             players: Default::default(),
@@ -172,9 +176,9 @@ impl Component for InGame {
                 }
                 false
             }
-            Msg::SendGuess(guess) => {
+            Msg::SendGuess => {
                 if let Some(ws) = &mut self.active_ws {
-                    ws.send_api(&GameReq::Guess(guess));
+                    ws.send_api(&GameReq::Guess(mem::take(&mut self.guess)));
                 }
                 false
             }
@@ -250,6 +254,10 @@ impl Component for InGame {
             Msg::Render => {
                 self.render_to_canvas();
                 false
+            }
+            Msg::SetGuess(guess) => {
+                self.guess = guess;
+                true
             }
             Msg::SetTool(tool) => {
                 self.tool = tool;
@@ -375,9 +383,10 @@ impl Component for InGame {
                 started = Some(*game_started);
                 if *drawing == self.nick.user_id() {
                     can_draw = true;
-                    guess_template = Some(component::guess_input::Template::reveal_all(&word));
+                    guess_template = Some((word.clone(), component::guess_template::Reveal::All));
                 } else {
-                    guess_template = Some(component::guess_input::Template::reveal_spaces(&word));
+                    guess_template =
+                        Some((word.clone(), component::guess_template::Reveal::Spaces));
                 }
             }
         };
@@ -385,12 +394,7 @@ impl Component for InGame {
         html! {
             <main class="window" style="max-width: 1500px; margin: auto">
                 <div class="title-bar">
-                    <div class="title-bar-text">
-                        {"In Game - "}{&self.lobby}{" "}
-                        {started.map(|started| html! {
-                            <>{"("}<component::Timer started=started count_down_from=Duration::seconds(i64::from(GUESS_SECONDS))/>{")"}</>
-                         }).unwrap_or_default()}
-                    </div>
+                    <div class="title-bar-text">{"In Game - "}{&self.lobby}</div>
                 </div>
                 <article class="window-body" style="display: flex">
                     <section style="flex: 1; height: 804px">
@@ -416,20 +420,43 @@ impl Component for InGame {
                                 style=if can_draw { "" } else { "position: absolute; top: 0; width: 100%; height: 100%" }
                             />
                         </div>
-                        {match choose_words {
-                            Some(words) => html! {
-                                <component::ChoosePopup game_link=self.link.clone(), words=words />
-                            },
-                            None => html! {},
-                        }}
+                        {choose_words.map(|words| html! {
+                            <component::ChoosePopup game_link=self.link.clone(), words=words />
+                        }).unwrap_or_default()}
                     </section>
                     <section style="flex: 1; height: 804px; display: flex; flex-direction: column">
                         <div style="flex: 1; min-height: 0">
                             <component::GuessArea players=self.players.clone() guesses=self.guesses.clone()/>
                         </div>
-                        <component::GuessInput game_link=self.link.clone(), guess_template=guess_template/>
+                        <component::GuessInput game_link=self.link.clone(), guess=self.guess.clone()/>
                     </section>
                 </article>
+                <footer class="status-bar">
+                    <div>{self.guesses.len()}{" message(s)"}</div>
+                    <div>
+                        {started.map(|started| html! {
+                            <component::Timer started=started count_down_from=Duration::seconds(i64::from(GUESS_SECONDS))/>
+                         }).unwrap_or_default()}
+                    </div>
+                    <div style="font-family: monospace; white-space: pre">
+                        {match self.tool {
+                            Tool::Pen(LineWidth::Small) => " 1px",
+                            Tool::Pen(LineWidth::Normal) => " 3px",
+                            Tool::Pen(LineWidth::Medium) => " 5px",
+                            Tool::Pen(LineWidth::Large) => " 9px",
+                            Tool::Pen(LineWidth::Extra) => "15px",
+                            Tool::Fill => "fill",
+                        }}
+                    </div>
+                    <div style="font-family: monospace">
+                        {format!("#{:02X}{:02X}{:02X}", self.color.r, self.color.g, self.color.b)}
+                    </div>
+                    <div style="width: calc((min(100vw - 16px, 1500px) - 804px) / 2 - 6px)">
+                        {guess_template.map(|(word, reveal)| html! {
+                            <component::GuessTemplate word=word reveal=reveal guess=self.guess.clone()/>
+                        }).unwrap_or_default()}
+                    </div>
+                </footer>
             </main>
         }
     }
