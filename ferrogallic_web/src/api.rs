@@ -24,7 +24,7 @@ impl FetchServiceExt for FetchService {
         req: &T::Req,
         f: impl Fn(Result<T, Error>) -> C::Message + 'static,
     ) -> Result<FetchTask, Error> {
-        let request = Request::post(T::PATH).body(Bincode(req))?;
+        let request = Request::post(format!("/{}", T::PATH)).body(Bincode(req))?;
         self.fetch_binary(
             request,
             link.callback(move |response: Response<Bincode<Result<T, Error>>>| {
