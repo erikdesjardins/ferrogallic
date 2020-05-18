@@ -702,13 +702,16 @@ fn guesser_score(
     guess_seconds: u8,
     existing: &BTreeMap<UserId, u32>,
 ) -> u32 {
-    let time_score = (guess_seconds as u32 - elapsed.whole_seconds() as u32) * PERFECT_GUESS_SCORE
-        / u32::from(guess_seconds);
+    let guess_millis = u32::from(guess_seconds) * 1000;
+    let elapsed_millis = elapsed.whole_milliseconds() as u32;
+    let time_score = (guess_millis - elapsed_millis) * PERFECT_GUESS_SCORE / guess_millis;
+
     let first_bonus = if existing.is_empty() {
         FIRST_CORRECT_BONUS
     } else {
         0
     };
+
     time_score + first_bonus
 }
 
