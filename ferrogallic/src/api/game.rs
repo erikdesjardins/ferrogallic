@@ -5,7 +5,7 @@ use ferrogallic_shared::api::game::{
     Canvas, Game, GamePhase, GameReq, GameState, Player, PlayerStatus,
 };
 use ferrogallic_shared::config::{
-    CLOSE_GUESS_LEVENSHTEIN, FIRST_CORRECT_BONUS, HEARTBEAT_SECONDS, NUMBER_OF_WORDS_TO_CHOOSE,
+    close_guess_levenshtein, FIRST_CORRECT_BONUS, HEARTBEAT_SECONDS, NUMBER_OF_WORDS_TO_CHOOSE,
     PERFECT_GUESS_SCORE, RX_SHARED_BUFFER, TX_BROADCAST_BUFFER, TX_SELF_DELAYED_BUFFER,
 };
 use ferrogallic_shared::domain::{Epoch, Guess, Lobby, Lowercase, Nickname, UserId};
@@ -399,7 +399,7 @@ async fn game_loop(
                                 (&tx, &mut guesses).send(Guess::Correct(user_id))?;
                             } else {
                                 let was_close =
-                                    if levenshtein(&guess, word) <= CLOSE_GUESS_LEVENSHTEIN {
+                                    if levenshtein(&guess, word) <= close_guess_levenshtein(word) {
                                         Some(guess.clone())
                                     } else {
                                         None
