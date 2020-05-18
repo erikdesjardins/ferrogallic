@@ -1,4 +1,5 @@
 use crate::api::WsEndpoint;
+use crate::config::{DEFAULT_GUESS_SECONDS, DEFAULT_ROUNDS};
 use crate::domain::{Color, Epoch, Guess, I12Pair, LineWidth, Lobby, Lowercase, Nickname, UserId};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -14,6 +15,7 @@ pub enum Game {
     Heartbeat,
     CanvasBulk(Vec<Canvas>),
     GuessBulk(Vec<Guess>),
+    ClearGuesses,
 }
 
 #[test]
@@ -40,14 +42,37 @@ impl WsEndpoint for Game {
     type Req = GameReq;
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct GameState {
+    pub config: GameConfig,
+    pub phase: GamePhase,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub enum GameState {
+pub struct GameConfig {
+    pub rounds: u8,
+    pub guess_seconds: u8,
+}
+
+impl Default for GameConfig {
+    fn default() -> Self {
+        Self {
+            rounds: DEFAULT_ROUNDS,
+            guess_seconds: DEFAULT_GUESS_SECONDS,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub enum GamePhase {
     WaitingToStart,
     ChoosingWords {
+        round: u8,
         choosing: UserId,
         words: Arc<[Lowercase]>,
     },
     Drawing {
+        round: u8,
         drawing: UserId,
         correct: BTreeMap<UserId, u32>,
         word: Lowercase,
@@ -56,7 +81,7 @@ pub enum GameState {
     },
 }
 
-impl Default for GameState {
+impl Default for GamePhase {
     fn default() -> Self {
         Self::WaitingToStart
     }

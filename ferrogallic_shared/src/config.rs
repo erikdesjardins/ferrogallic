@@ -11,6 +11,7 @@ pub const CANVAS_HEIGHT: usize = 600;
 pub const HEARTBEAT_SECONDS: u64 = 45;
 
 pub const NUMBER_OF_WORDS_TO_CHOOSE: usize = 3;
-pub const GUESS_SECONDS: u32 = 120;
+pub const DEFAULT_ROUNDS: u8 = 3;
+pub const DEFAULT_GUESS_SECONDS: u8 = 120;
 pub const PERFECT_GUESS_SCORE: u32 = 500;
 pub const CLOSE_GUESS_LEVENSHTEIN: usize = 2;

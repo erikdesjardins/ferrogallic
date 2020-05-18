@@ -1,10 +1,12 @@
 use crate::api::TypedWebSocket;
 use crate::words;
 use anyhow::{anyhow, Error};
-use ferrogallic_shared::api::game::{Canvas, Game, GameReq, GameState, Player, PlayerStatus};
+use ferrogallic_shared::api::game::{
+    Canvas, Game, GamePhase, GameReq, GameState, Player, PlayerStatus,
+};
 use ferrogallic_shared::config::{
-    CLOSE_GUESS_LEVENSHTEIN, GUESS_SECONDS, HEARTBEAT_SECONDS, NUMBER_OF_WORDS_TO_CHOOSE,
-    PERFECT_GUESS_SCORE, RX_SHARED_BUFFER, TX_BROADCAST_BUFFER, TX_SELF_DELAYED_BUFFER,
+    CLOSE_GUESS_LEVENSHTEIN, HEARTBEAT_SECONDS, NUMBER_OF_WORDS_TO_CHOOSE, PERFECT_GUESS_SCORE,
+    RX_SHARED_BUFFER, TX_BROADCAST_BUFFER, TX_SELF_DELAYED_BUFFER,
 };
 use ferrogallic_shared::domain::{Epoch, Guess, Lobby, Lowercase, Nickname, UserId};
 use futures::{SinkExt, StreamExt};
@@ -14,6 +16,7 @@ use std::cell::Cell;
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, HashMap};
 use std::mem;
+use std::ops::Bound;
 use std::sync::Arc;
 use strsim::levenshtein;
 use time::OffsetDateTime;
@@ -87,8 +90,8 @@ pub async fn join_game(
             messages,
         } = rx_onboard.await?;
 
-        for msg in messages {
-            ws.send(&msg).await?;
+        for msg in &messages {
+            ws.send(msg).await?;
         }
 
         loop {
@@ -148,7 +151,7 @@ pub async fn join_game(
 
 struct Onboarding {
     rx_broadcast: broadcast::Receiver<Broadcast>,
-    messages: Vec<Game>,
+    messages: [Game; 3],
 }
 
 enum GameLoop {
@@ -266,7 +269,9 @@ async fn game_loop(
     let mut players = Invalidate::new(Arc::new(BTreeMap::new()));
     let mut game_state = Invalidate::new(Arc::new(GameState::default()));
     let mut canvas_events = Vec::new();
-    let mut guesses = vec![Guess::System("Type 'start' to start the game.".into())];
+    let mut guesses = Vec::new();
+
+    guesses.push(Guess::Help);
 
     loop {
         let msg = match rx.recv().await {
@@ -277,7 +282,7 @@ async fn game_loop(
             GameLoop::Connect(user_id, epoch, nick, tx_onboard) => {
                 let onboarding = Onboarding {
                     rx_broadcast: tx.subscribe(),
-                    messages: vec![
+                    messages: [
                         Game::Game(game_state.read().clone()),
                         Game::GuessBulk(guesses.clone()),
                         Game::CanvasBulk(canvas_events.clone()),
@@ -313,15 +318,21 @@ async fn game_loop(
                         continue;
                     }
                 };
-                let state = game_state.read().as_ref();
-                match (req, state) {
+                let GameState { config, phase } = game_state.read().as_ref();
+                match (req, phase) {
                     (GameReq::Canvas(event), _) => {
                         (&tx, &mut canvas_events).send(user_id, event)?;
                         continue;
                     }
-                    (GameReq::Choose(word), GameState::ChoosingWords { choosing, words })
-                        if *choosing == user_id && words.contains(&word) =>
-                    {
+                    (
+                        GameReq::Choose(word),
+                        GamePhase::ChoosingWords {
+                            round,
+                            choosing,
+                            words,
+                        },
+                    ) if *choosing == user_id && words.contains(&word) => {
+                        let round = *round;
                         let drawing = *choosing;
                         trans_to_drawing(
                             &tx,
@@ -329,26 +340,45 @@ async fn game_loop(
                             Arc::make_mut(game_state.write()),
                             &mut canvas_events,
                             &mut guesses,
+                            round,
                             drawing,
                             word,
                         )
                         .await?;
                     }
-                    (GameReq::Guess(guess), state) => match state {
-                        GameState::WaitingToStart => match guess.as_ref() {
-                            "start" => trans_to_choosing(
+                    (GameReq::Guess(guess), phase) => match phase {
+                        GamePhase::WaitingToStart => match guess.as_ref() {
+                            "start" => trans_at_game_start(
                                 &tx,
                                 players.read(),
                                 Arc::make_mut(game_state.write()),
                                 &mut guesses,
-                                None,
                             )?,
+                            guess if guess.starts_with("rounds ") => {
+                                match guess.trim_start_matches("rounds ").parse() {
+                                    Ok(rounds) => {
+                                        Arc::make_mut(game_state.write()).config.rounds = rounds;
+                                    }
+                                    Err(e) => (&tx, &mut guesses)
+                                        .send(Guess::System(format!("Error: {}.", e).into()))?,
+                                }
+                            }
+                            guess if guess.starts_with("time ") => {
+                                match guess.trim_start_matches("time ").parse() {
+                                    Ok(s) => {
+                                        Arc::make_mut(game_state.write()).config.guess_seconds = s;
+                                    }
+                                    Err(e) => (&tx, &mut guesses)
+                                        .send(Guess::System(format!("Error: {}.", e).into()))?,
+                                }
+                            }
                             _ => (&tx, &mut guesses).send(Guess::Message(user_id, guess))?,
                         },
-                        GameState::ChoosingWords { .. } => {
+                        GamePhase::ChoosingWords { .. } => {
                             (&tx, &mut guesses).send(Guess::Message(user_id, guess))?;
                         }
-                        GameState::Drawing {
+                        GamePhase::Drawing {
+                            round: _,
                             drawing,
                             correct,
                             word,
@@ -359,10 +389,11 @@ async fn game_loop(
                                 (&tx, &mut guesses).send(Guess::Message(user_id, guess))?;
                             } else if guess == *word {
                                 let elapsed = OffsetDateTime::now_utc() - *started;
-                                if let GameState::Drawing { correct, .. } =
-                                    Arc::make_mut(game_state.write())
+                                let guess_seconds = config.guess_seconds;
+                                if let GamePhase::Drawing { correct, .. } =
+                                    &mut Arc::make_mut(game_state.write()).phase
                                 {
-                                    correct.insert(user_id, guesser_score(elapsed));
+                                    correct.insert(user_id, guesser_score(elapsed, guess_seconds));
                                 }
                                 (&tx, &mut guesses).send(Guess::Correct(user_id))?;
                             } else {
@@ -409,24 +440,27 @@ async fn game_loop(
                 tx.send(Broadcast::Everyone(Game::Heartbeat))?;
             }
             GameLoop::GameEnd(ended_epoch) => {
-                if let GameState::Drawing { epoch, .. } = game_state.read().as_ref() {
+                if let GamePhase::Drawing { epoch, .. } = &game_state.read().phase {
                     if *epoch == ended_epoch {
                         let game_state = Arc::make_mut(game_state.write());
-                        if let GameState::Drawing {
+                        if let GamePhase::Drawing {
+                            round,
                             drawing,
                             correct,
                             word,
                             ..
-                        } = game_state
+                        } = &mut game_state.phase
                         {
                             (&tx, &mut guesses).send(Guess::TimeExpired(word.clone()))?;
-                            let drawing = *drawing;
+                            let (round, drawing) = (*round, *drawing);
                             let correct = mem::take(correct);
                             trans_at_round_end(
                                 &tx,
                                 Arc::make_mut(players.write()),
                                 game_state,
+                                &mut canvas_events,
                                 &mut guesses,
+                                round,
                                 drawing,
                                 correct,
                             )?;
@@ -437,9 +471,9 @@ async fn game_loop(
         }
 
         if players.is_changed() || game_state.is_changed() {
-            if let GameState::Drawing {
+            if let GamePhase::Drawing {
                 drawing, correct, ..
-            } = game_state.read().as_ref()
+            } = &game_state.read().phase
             {
                 if players
                     .read()
@@ -447,17 +481,22 @@ async fn game_loop(
                     .all(|uid| drawing == uid || correct.contains_key(uid))
                 {
                     let game_state = Arc::make_mut(game_state.write());
-                    if let GameState::Drawing {
-                        drawing, correct, ..
-                    } = game_state
+                    if let GamePhase::Drawing {
+                        round,
+                        drawing,
+                        correct,
+                        ..
+                    } = &mut game_state.phase
                     {
-                        let drawing = *drawing;
+                        let (round, drawing) = (*round, *drawing);
                         let correct = mem::take(correct);
                         trans_at_round_end(
                             &tx,
                             Arc::make_mut(players.write()),
                             game_state,
+                            &mut canvas_events,
                             &mut guesses,
+                            round,
                             drawing,
                             correct,
                         )?;
@@ -499,6 +538,8 @@ impl CanvasExt for (&broadcast::Sender<Broadcast>, &mut Vec<Canvas>) {
 
 trait GuessExt {
     fn send(self, guess: Guess) -> Result<(), GameLoopError>;
+
+    fn clear(self) -> Result<(), GameLoopError>;
 }
 
 impl GuessExt for (&broadcast::Sender<Broadcast>, &mut Vec<Guess>) {
@@ -507,33 +548,48 @@ impl GuessExt for (&broadcast::Sender<Broadcast>, &mut Vec<Guess>) {
         self.0.send(Broadcast::Everyone(Game::Guess(guess)))?;
         Ok(())
     }
+
+    fn clear(self) -> Result<(), GameLoopError> {
+        self.1.clear();
+        self.0.send(Broadcast::Everyone(Game::ClearGuesses))?;
+        Ok(())
+    }
 }
 
-fn trans_to_choosing(
+fn trans_at_game_start(
     tx: &broadcast::Sender<Broadcast>,
     players: &BTreeMap<UserId, Player>,
     game_state: &mut GameState,
     guesses: &mut Vec<Guess>,
-    previously_drawing: Option<UserId>,
 ) -> Result<(), GameLoopError> {
-    let choosing = players
-        .keys()
-        // first player after the previous drawer...
-        .skip_while(|uid| Some(**uid) != previously_drawing)
-        .nth(1)
-        // ...or the first player in the list
-        .or_else(|| players.keys().next());
-    let choosing = match choosing {
+    (tx, &mut *guesses).clear()?;
+    let round = 1;
+    let next_choosing = match players.keys().next() {
         Some(choosing) => *choosing,
         None => return Err(GameLoopError::NoConnectionsDuringStateChange),
     };
+    trans_to_choosing(tx, game_state, guesses, round, next_choosing)?;
+    Ok(())
+}
+
+fn trans_to_choosing(
+    tx: &broadcast::Sender<Broadcast>,
+    game_state: &mut GameState,
+    guesses: &mut Vec<Guess>,
+    round: u8,
+    next_choosing: UserId,
+) -> Result<(), GameLoopError> {
     let words = words::GAME
         .choose_multiple(&mut thread_rng(), NUMBER_OF_WORDS_TO_CHOOSE)
         .copied()
         .map(Lowercase::new)
         .collect();
-    *game_state = GameState::ChoosingWords { choosing, words };
-    (tx, guesses).send(Guess::NowChoosing(choosing))?;
+    game_state.phase = GamePhase::ChoosingWords {
+        round,
+        choosing: next_choosing,
+        words,
+    };
+    (tx, guesses).send(Guess::NowChoosing(next_choosing))?;
     Ok(())
 }
 
@@ -543,13 +599,15 @@ async fn trans_to_drawing(
     game_state: &mut GameState,
     canvas_events: &mut Vec<Canvas>,
     guesses: &mut Vec<Guess>,
+    round: u8,
     drawing: UserId,
     word: Lowercase,
 ) -> Result<(), GameLoopError> {
     let game_epoch = Epoch::next();
     let started = OffsetDateTime::now_utc();
-    let will_end = Instant::now() + Duration::from_secs(GUESS_SECONDS.into());
-    *game_state = GameState::Drawing {
+    let will_end = Instant::now() + Duration::from_secs(u64::from(game_state.config.guess_seconds));
+    game_state.phase = GamePhase::Drawing {
+        round,
         drawing,
         correct: Default::default(),
         word,
@@ -568,7 +626,9 @@ fn trans_at_round_end(
     tx: &broadcast::Sender<Broadcast>,
     players: &mut BTreeMap<UserId, Player>,
     game_state: &mut GameState,
+    canvas_events: &mut Vec<Canvas>,
     guesses: &mut Vec<Guess>,
+    round: u8,
     drawing: UserId,
     correct: BTreeMap<UserId, u32>,
 ) -> Result<(), GameLoopError> {
@@ -582,12 +642,62 @@ fn trans_at_round_end(
     if let Some(drawer) = players.get_mut(&drawing) {
         drawer.score += drawer_score;
     }
-    trans_to_choosing(tx, players, game_state, guesses, Some(drawing))?;
+
+    let player_after_previous = players
+        .range((Bound::Excluded(drawing), Bound::Unbounded))
+        .next();
+    let next = if let Some(after_prev) = player_after_previous {
+        // advancing to next player, same round
+        Some((round, *after_prev.0))
+    } else if round < game_state.config.rounds {
+        // no next player; change to next round
+        let next_choosing = match players.keys().next() {
+            Some(choosing) => *choosing,
+            None => return Err(GameLoopError::NoConnectionsDuringStateChange),
+        };
+        Some((round + 1, next_choosing))
+    } else {
+        // end game
+        None
+    };
+
+    match next {
+        Some((round, next_choosing)) => {
+            trans_to_choosing(tx, game_state, guesses, round, next_choosing)
+        }
+        None => trans_at_game_end(tx, players, game_state, canvas_events, guesses),
+    }
+}
+
+fn trans_at_game_end(
+    tx: &broadcast::Sender<Broadcast>,
+    players: &mut BTreeMap<UserId, Player>,
+    game_state: &mut GameState,
+    canvas_events: &mut Vec<Canvas>,
+    guesses: &mut Vec<Guess>,
+) -> Result<(), GameLoopError> {
+    (tx, &mut *guesses).send(Guess::GameOver)?;
+    let mut players_by_score = players
+        .iter()
+        .map(|(uid, player)| (*uid, player.score))
+        .collect::<Vec<_>>();
+    players_by_score.sort_by_key(|(_, score)| *score);
+    for (index, (user_id, score)) in players_by_score.into_iter().rev().enumerate() {
+        (tx, &mut *guesses).send(Guess::FinalScore {
+            rank: index + 1,
+            user_id,
+            score,
+        })?;
+    }
+    game_state.phase = GamePhase::WaitingToStart;
+    (tx, guesses).send(Guess::Help)?;
+    (tx, canvas_events).clear()?;
     Ok(())
 }
 
-fn guesser_score(elapsed: time::Duration) -> u32 {
-    (GUESS_SECONDS - elapsed.whole_seconds() as u32) * PERFECT_GUESS_SCORE / GUESS_SECONDS
+fn guesser_score(elapsed: time::Duration, guess_seconds: u8) -> u32 {
+    (guess_seconds as u32 - elapsed.whole_seconds() as u32) * PERFECT_GUESS_SCORE
+        / u32::from(guess_seconds)
 }
 
 fn drawer_score(scores: impl Iterator<Item = u32>, player_count: u32) -> u32 {

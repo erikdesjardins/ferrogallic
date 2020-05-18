@@ -59,7 +59,7 @@ impl Component for Timer {
         let time_left = self.props.count_down_from - elapsed;
         let seconds_left = time_left.whole_seconds();
         html! {
-            <>{seconds_left}{"s"}</>
+            {seconds_left}
         }
     }
 }

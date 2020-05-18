@@ -108,6 +108,13 @@ mod guess {
                 Guess::System(system) => html! {
                     <li>{"🖥️ "}{system}</li>
                 },
+                Guess::Help => html! {
+                    <>
+                    <li>{"❓ Type 'start' to start the game."}</li>
+                    <li>{"❓ Type 'rounds <number>' to set number of rounds."}</li>
+                    <li>{"❓ Type 'time <seconds>' to set guess time."}</li>
+                    </>
+                },
                 Guess::Message(user_id, message) => html! {
                     <li>{format_user(*user_id)}{": "}{message}</li>
                 },
@@ -131,6 +138,16 @@ mod guess {
                 },
                 Guess::TimeExpired(word) => html! {
                     <li>{"⏰ Time's up! The word was '"}{word}{"'."}</li>
+                },
+                Guess::GameOver => html! {
+                    <li>{"🎮 Game over!"}</li>
+                },
+                Guess::FinalScore {
+                    rank,
+                    user_id,
+                    score,
+                } => html! {
+                    <li>{"🏆 (#"}{rank}{") "}{format_user(*user_id)}{" with "}{score}{" points."}</li>
                 },
             }
         }

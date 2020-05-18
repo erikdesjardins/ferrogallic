@@ -41,13 +41,13 @@ impl Component for Players {
 
     fn view(&self) -> Html {
         let player_rankings = {
-            let mut players_in_order = self
+            let mut players_by_score = self
                 .players
                 .iter()
                 .map(|(uid, player)| (*uid, player.score))
                 .collect::<Vec<_>>();
-            players_in_order.sort_by_key(|(_, score)| *score);
-            players_in_order
+            players_by_score.sort_by_key(|(_, score)| *score);
+            players_by_score
                 .into_iter()
                 .rev()
                 .enumerate()
