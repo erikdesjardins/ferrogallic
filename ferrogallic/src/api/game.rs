@@ -5,8 +5,8 @@ use ferrogallic_shared::api::game::{
     Canvas, Game, GamePhase, GameReq, GameState, Player, PlayerStatus,
 };
 use ferrogallic_shared::config::{
-    CLOSE_GUESS_LEVENSHTEIN, HEARTBEAT_SECONDS, NUMBER_OF_WORDS_TO_CHOOSE, PERFECT_GUESS_SCORE,
-    RX_SHARED_BUFFER, TX_BROADCAST_BUFFER, TX_SELF_DELAYED_BUFFER,
+    CLOSE_GUESS_LEVENSHTEIN, FIRST_CORRECT_BONUS, HEARTBEAT_SECONDS, NUMBER_OF_WORDS_TO_CHOOSE,
+    PERFECT_GUESS_SCORE, RX_SHARED_BUFFER, TX_BROADCAST_BUFFER, TX_SELF_DELAYED_BUFFER,
 };
 use ferrogallic_shared::domain::{Epoch, Guess, Lobby, Lowercase, Nickname, UserId};
 use futures::{SinkExt, StreamExt};
@@ -393,7 +393,8 @@ async fn game_loop(
                                 if let GamePhase::Drawing { correct, .. } =
                                     &mut Arc::make_mut(game_state.write()).phase
                                 {
-                                    correct.insert(user_id, guesser_score(elapsed, guess_seconds));
+                                    let score = guesser_score(elapsed, guess_seconds, &*correct);
+                                    correct.insert(user_id, score);
                                 }
                                 (&tx, &mut guesses).send(Guess::Correct(user_id))?;
                             } else {
@@ -696,9 +697,19 @@ fn trans_at_game_end(
     Ok(())
 }
 
-fn guesser_score(elapsed: time::Duration, guess_seconds: u8) -> u32 {
-    (guess_seconds as u32 - elapsed.whole_seconds() as u32) * PERFECT_GUESS_SCORE
-        / u32::from(guess_seconds)
+fn guesser_score(
+    elapsed: time::Duration,
+    guess_seconds: u8,
+    existing: &BTreeMap<UserId, u32>,
+) -> u32 {
+    let time_score = (guess_seconds as u32 - elapsed.whole_seconds() as u32) * PERFECT_GUESS_SCORE
+        / u32::from(guess_seconds);
+    let first_bonus = if existing.is_empty() {
+        FIRST_CORRECT_BONUS
+    } else {
+        0
+    };
+    time_score + first_bonus
 }
 
 fn drawer_score(scores: impl Iterator<Item = u32>, player_count: u32) -> u32 {
