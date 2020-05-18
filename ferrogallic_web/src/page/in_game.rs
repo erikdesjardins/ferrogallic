@@ -7,7 +7,7 @@ use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::game::{Canvas, Game, GamePhase, GameReq, GameState, Player};
 use ferrogallic_shared::config::{CANVAS_HEIGHT, CANVAS_WIDTH};
 use ferrogallic_shared::domain::{
-    Color, Epoch, Guess, I12Pair, LineWidth, Lobby, Lowercase, Nickname, Tool, UserId,
+    Color, Epoch, Guess, I12Pair, Lobby, Lowercase, Nickname, Tool, UserId,
 };
 use gloo::events::{EventListener, EventListenerOptions};
 use std::collections::BTreeMap;
@@ -366,6 +366,7 @@ impl Component for InGame {
 
         let mut can_draw = false;
         let mut choose_words = None;
+        let mut cur_round = None;
         let mut active_player = None;
         let mut drawing_started = None;
         let mut guess_template = None;
@@ -374,23 +375,25 @@ impl Component for InGame {
                 can_draw = true;
             }
             GamePhase::ChoosingWords {
-                round: _,
+                round,
                 choosing,
                 words,
             } => {
+                cur_round = Some(*round);
                 active_player = self.players.get(choosing);
                 if *choosing == self.nick.user_id() {
                     choose_words = Some(words.clone());
                 }
             }
             GamePhase::Drawing {
-                round: _,
+                round,
                 drawing,
                 correct: _,
                 word,
                 epoch: _,
                 started,
             } => {
+                cur_round = Some(*round);
                 active_player = self.players.get(drawing);
                 drawing_started = Some(*started);
                 if *drawing == self.nick.user_id() {
@@ -444,38 +447,24 @@ impl Component for InGame {
                     </section>
                 </article>
                 <footer class="status-bar">
-                    <div>{self.guesses.len()}{" messages"}</div>
                     <div>
                         {active_player.map(|active_player| html! {
-                            {&active_player.nick}
-                         }).unwrap_or_default()}
+                            <>{&active_player.nick}{" is drawing"}</>
+                        }).unwrap_or_else(|| html! {
+                            {"Waiting to start"}
+                        })}
                     </div>
                     <div>
                         {drawing_started.map(|drawing_started| html! {
                             <component::Timer started=drawing_started count_down_from=Duration::seconds(i64::from(self.game.config.guess_seconds))/>
                          }).unwrap_or_default()}
-                         {"/"}{self.game.config.guess_seconds}{"s"}
+                         {"/"}{self.game.config.guess_seconds}{" seconds"}
                     </div>
                     <div>
-                        {match self.game.phase {
-                            GamePhase::WaitingToStart => html! {},
-                            GamePhase::ChoosingWords { round, .. }
-                            | GamePhase::Drawing { round, .. } => html! { <>{round}</> },
-                        }}
-                        {"/"}{self.game.config.rounds}
-                    </div>
-                    <div style="font-family: monospace; white-space: pre">
-                        {match self.tool {
-                            Tool::Pen(LineWidth::Small) => " 1px",
-                            Tool::Pen(LineWidth::Normal) => " 3px",
-                            Tool::Pen(LineWidth::Medium) => " 5px",
-                            Tool::Pen(LineWidth::Large) => " 9px",
-                            Tool::Pen(LineWidth::Extra) => "15px",
-                            Tool::Fill => "fill",
-                        }}
-                    </div>
-                    <div style="font-family: monospace">
-                        {format!("#{:02X}{:02X}{:02X}", self.color.r, self.color.g, self.color.b)}
+                        {cur_round.map(|cur_round| html! {
+                            {cur_round}
+                        }).unwrap_or_default()}
+                        {"/"}{self.game.config.rounds}{" rounds"}
                     </div>
                     <div style="width: calc((min(100vw - 16px, 1500px) - 804px) / 2 - 6px)">
                         {guess_template.map(|(word, reveal)| html! {
