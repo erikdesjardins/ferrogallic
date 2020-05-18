@@ -4,8 +4,8 @@ use crate::canvas::VirtualCanvas;
 use crate::component;
 use crate::util::NeqAssign;
 use anyhow::{anyhow, Error};
-use ferrogallic_shared::api::game::{Canvas, Game, GameReq, GameState, Player};
-use ferrogallic_shared::config::{CANVAS_HEIGHT, CANVAS_WIDTH, GUESS_SECONDS};
+use ferrogallic_shared::api::game::{Canvas, Game, GamePhase, GameReq, GameState, Player};
+use ferrogallic_shared::config::{CANVAS_HEIGHT, CANVAS_WIDTH};
 use ferrogallic_shared::domain::{
     Color, Epoch, Guess, I12Pair, LineWidth, Lobby, Lowercase, Nickname, Tool, UserId,
 };
@@ -160,6 +160,10 @@ impl Component for InGame {
                 }
                 Game::GuessBulk(guesses) => {
                     Arc::make_mut(&mut self.guesses).extend(guesses);
+                    true
+                }
+                Game::ClearGuesses => {
+                    self.guesses = Default::default();
                     true
                 }
                 Game::Heartbeat => false,
@@ -362,25 +366,33 @@ impl Component for InGame {
 
         let mut can_draw = false;
         let mut choose_words = None;
-        let mut started = None;
+        let mut active_player = None;
+        let mut drawing_started = None;
         let mut guess_template = None;
-        let _: () = match self.game.as_ref() {
-            GameState::WaitingToStart => {
+        let _: () = match &self.game.phase {
+            GamePhase::WaitingToStart => {
                 can_draw = true;
             }
-            GameState::ChoosingWords { choosing, words } => {
+            GamePhase::ChoosingWords {
+                round: _,
+                choosing,
+                words,
+            } => {
+                active_player = self.players.get(choosing);
                 if *choosing == self.nick.user_id() {
                     choose_words = Some(words.clone());
                 }
             }
-            GameState::Drawing {
+            GamePhase::Drawing {
+                round: _,
                 drawing,
                 correct: _,
                 word,
                 epoch: _,
-                started: game_started,
+                started,
             } => {
-                started = Some(*game_started);
+                active_player = self.players.get(drawing);
+                drawing_started = Some(*started);
                 if *drawing == self.nick.user_id() {
                     can_draw = true;
                     guess_template = Some((word.clone(), component::guess_template::Reveal::All));
@@ -432,11 +444,25 @@ impl Component for InGame {
                     </section>
                 </article>
                 <footer class="status-bar">
-                    <div>{self.guesses.len()}{" message(s)"}</div>
+                    <div>{self.guesses.len()}{" messages"}</div>
                     <div>
-                        {started.map(|started| html! {
-                            <component::Timer started=started count_down_from=Duration::seconds(i64::from(GUESS_SECONDS))/>
+                        {active_player.map(|active_player| html! {
+                            {&active_player.nick}
                          }).unwrap_or_default()}
+                    </div>
+                    <div>
+                        {drawing_started.map(|drawing_started| html! {
+                            <component::Timer started=drawing_started count_down_from=Duration::seconds(i64::from(self.game.config.guess_seconds))/>
+                         }).unwrap_or_default()}
+                         {"/"}{self.game.config.guess_seconds}{"s"}
+                    </div>
+                    <div>
+                        {match self.game.phase {
+                            GamePhase::WaitingToStart => html! {},
+                            GamePhase::ChoosingWords { round, .. }
+                            | GamePhase::Drawing { round, .. } => html! { <>{round}</> },
+                        }}
+                        {"/"}{self.game.config.rounds}
                     </div>
                     <div style="font-family: monospace; white-space: pre">
                         {match self.tool {

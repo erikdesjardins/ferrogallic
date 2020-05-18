@@ -154,6 +154,7 @@ impl fmt::Display for Lowercase {
 #[derive(Debug, Deserialize, Serialize, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub enum Guess {
     System(Arc<str>),
+    Help,
     Message(UserId, Lowercase),
     NowChoosing(UserId),
     NowDrawing(UserId),
@@ -162,6 +163,12 @@ pub enum Guess {
     Correct(UserId),
     EarnedPoints(UserId, u32),
     TimeExpired(Lowercase),
+    GameOver,
+    FinalScore {
+        rank: usize,
+        user_id: UserId,
+        score: u32,
+    },
 }
 
 #[test]
