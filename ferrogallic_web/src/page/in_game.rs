@@ -333,15 +333,15 @@ impl Component for InGame {
                 &self.link,
                 |res| match res {
                     Ok(msg) => Msg::Message(msg),
-                    Err(e) => Msg::SetGlobalError(e),
+                    Err(e) => Msg::SetGlobalError(e.context("Failed to receive from websocket")),
                 },
                 Msg::ConnStatus,
             );
             match started_ws {
                 Ok(task) => self.active_ws = Some(task),
-                Err(e) => self
-                    .app_link
-                    .send_message(app::Msg::SetError(e.context("Failed to connect"))),
+                Err(e) => self.app_link.send_message(app::Msg::SetError(
+                    e.context("Failed to connect to websocket"),
+                )),
             }
         }
     }

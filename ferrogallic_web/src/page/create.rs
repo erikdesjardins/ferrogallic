@@ -85,11 +85,13 @@ impl Component for Create {
                 .fetch_service
                 .fetch_api(&self.link, &(), |res| match res {
                     Ok(RandomLobbyName { lobby }) => Msg::SetGeneratedLobbyName(lobby),
-                    Err(e) => Msg::SetGlobalError(e),
+                    Err(e) => Msg::SetGlobalError(e.context("Failed to receive lobby name")),
                 });
             match started_fetch {
                 Ok(task) => self.fetching_generated_lobby_name = Some(task),
-                Err(e) => self.app_link.send_message(app::Msg::SetError(e)),
+                Err(e) => self
+                    .app_link
+                    .send_message(app::Msg::SetError(e.context("Failed to fetch lobby name"))),
             }
         }
     }
