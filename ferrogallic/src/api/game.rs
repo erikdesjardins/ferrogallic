@@ -350,7 +350,7 @@ async fn game_loop(
                         GamePhase::WaitingToStart => match guess.as_ref() {
                             "start" => trans_at_game_start(
                                 &tx,
-                                players.read(),
+                                Arc::make_mut(players.write()),
                                 Arc::make_mut(game_state.write()),
                                 &mut guesses,
                             )?,
@@ -558,10 +558,11 @@ impl GuessExt for (&broadcast::Sender<Broadcast>, &mut Vec<Guess>) {
 
 fn trans_at_game_start(
     tx: &broadcast::Sender<Broadcast>,
-    players: &BTreeMap<UserId, Player>,
+    players: &mut BTreeMap<UserId, Player>,
     game_state: &mut GameState,
     guesses: &mut Vec<Guess>,
 ) -> Result<(), GameLoopError> {
+    players.values_mut().for_each(|player| player.score = 0);
     (tx, &mut *guesses).clear()?;
     let round = 1;
     let next_choosing = match players.keys().next() {
