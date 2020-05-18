@@ -96,12 +96,18 @@ mod guess {
         }
 
         fn view(&self) -> Html {
-            let format_user = |user_id| {
+            let nickname = |user_id| {
                 self.props
                     .players
                     .get(&user_id)
                     .map(|p| &*p.nick)
                     .unwrap_or("<unknown>")
+            };
+
+            let rank_emoji = |rank: usize| match rank {
+                1 => "🏆",
+                2 | 3 => "🏅",
+                _ => "🎖️",
             };
 
             match &self.props.guess {
@@ -116,25 +122,25 @@ mod guess {
                     </>
                 },
                 Guess::Message(user_id, message) => html! {
-                    <li>{format_user(*user_id)}{": "}{message}</li>
+                    <li>{nickname(*user_id)}{": "}{message}</li>
                 },
                 Guess::NowChoosing(user_id) => html! {
-                    <li>{"✨ "}{format_user(*user_id)}{" is choosing a word."}</li>
+                    <li>{"✨ "}{nickname(*user_id)}{" is choosing a word."}</li>
                 },
                 Guess::NowDrawing(user_id) => html! {
-                    <li>{"🖌️ "}{format_user(*user_id)}{" is drawing!"}</li>
+                    <li>{"🖌️ "}{nickname(*user_id)}{" is drawing!"}</li>
                 },
                 Guess::Guess(user_id, guess) => html! {
-                    <li>{"❌ "}{format_user(*user_id)}{" guessed '"}{guess}{"'."}</li>
+                    <li>{"❌ "}{nickname(*user_id)}{" guessed '"}{guess}{"'."}</li>
                 },
                 Guess::CloseGuess(guess) => html! {
                     <li>{"🤏 '"}{guess}{"' is close!"}</li>
                 },
                 Guess::Correct(user_id) => html! {
-                    <li>{"✔️ "}{format_user(*user_id)}{" guessed correctly!"}</li>
+                    <li>{"✔️ "}{nickname(*user_id)}{" guessed correctly!"}</li>
                 },
                 Guess::EarnedPoints(user_id, points) => html! {
-                    <li>{"💵 "}{format_user(*user_id)}{" earned "}{points}{" points."}</li>
+                    <li>{"💵 "}{nickname(*user_id)}{" earned "}{points}{" points."}</li>
                 },
                 Guess::TimeExpired(word) => html! {
                     <li>{"⏰ Time's up! The word was '"}{word}{"'."}</li>
@@ -147,7 +153,7 @@ mod guess {
                     user_id,
                     score,
                 } => html! {
-                    <li>{"🏆 (#"}{rank}{") "}{format_user(*user_id)}{" with "}{score}{" points."}</li>
+                    <li>{rank_emoji(*rank)}{" (#"}{rank}{") "}{nickname(*user_id)}{" with "}{score}{" points."}</li>
                 },
             }
         }
