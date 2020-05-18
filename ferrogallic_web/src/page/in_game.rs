@@ -182,7 +182,9 @@ impl Component for InGame {
             }
             Msg::SendGuess => {
                 if let Some(ws) = &mut self.active_ws {
-                    ws.send_api(&GameReq::Guess(mem::take(&mut self.guess)));
+                    if !self.guess.is_empty() {
+                        ws.send_api(&GameReq::Guess(mem::take(&mut self.guess)));
+                    }
                 }
                 false
             }
