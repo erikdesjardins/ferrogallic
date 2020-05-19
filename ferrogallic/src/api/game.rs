@@ -363,8 +363,8 @@ async fn game_loop(
                                         .send(Guess::System(format!("Error: {}.", e).into()))?,
                                 }
                             }
-                            guess if guess.starts_with("time ") => {
-                                match guess.trim_start_matches("time ").parse() {
+                            guess if guess.starts_with("seconds ") => {
+                                match guess.trim_start_matches("seconds ").parse() {
                                     Ok(s) => {
                                         Arc::make_mut(game_state.write()).config.guess_seconds = s;
                                     }
