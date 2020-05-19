@@ -51,7 +51,7 @@ pub struct GameState {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GameConfig {
     pub rounds: u8,
-    pub guess_seconds: u8,
+    pub guess_seconds: u16,
 }
 
 impl Default for GameConfig {

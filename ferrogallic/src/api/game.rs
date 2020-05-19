@@ -720,12 +720,14 @@ fn trans_at_game_end(
 
 fn guesser_score(
     elapsed: time::Duration,
-    guess_seconds: u8,
+    guess_seconds: u16,
     existing: &BTreeMap<UserId, u32>,
 ) -> u32 {
     let guess_millis = u32::from(guess_seconds) * 1000;
     let elapsed_millis = elapsed.whole_milliseconds() as u32;
-    let time_score = (guess_millis - elapsed_millis) * PERFECT_GUESS_SCORE / guess_millis;
+    let time_score = ((guess_millis - elapsed_millis) * PERFECT_GUESS_SCORE)
+        .checked_div(guess_millis)
+        .unwrap_or(0);
 
     let first_bonus = if existing.is_empty() {
         FIRST_CORRECT_BONUS
