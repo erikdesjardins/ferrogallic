@@ -705,16 +705,11 @@ fn trans_at_game_end(
     guesses: &mut Vec<Guess>,
 ) -> Result<(), GameLoopError> {
     (tx, &mut *guesses).send(Guess::GameOver)?;
-    let mut players_by_score = players
-        .iter()
-        .map(|(uid, player)| (*uid, player.score))
-        .collect::<Vec<_>>();
-    players_by_score.sort_by_key(|(_, score)| *score);
-    for (index, (user_id, score)) in players_by_score.into_iter().rev().enumerate() {
+    for (rank, user_id, player) in Player::rankings(&*players) {
         (tx, &mut *guesses).send(Guess::FinalScore {
-            rank: index + 1,
+            rank,
             user_id,
-            score,
+            score: player.score,
         })?;
     }
     game_state.phase = GamePhase::WaitingToStart;
