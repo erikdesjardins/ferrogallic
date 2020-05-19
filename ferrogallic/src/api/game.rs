@@ -472,15 +472,40 @@ async fn game_loop(
         }
 
         if players.is_changed() || game_state.is_changed() {
-            if let GamePhase::Drawing {
-                drawing, correct, ..
-            } = &game_state.read().phase
-            {
-                if players
+            match &game_state.read().phase {
+                GamePhase::ChoosingWords { choosing, .. }
+                    if !players.read().contains_key(choosing) =>
+                {
+                    // ...the chooser is gone
+                    let game_state = Arc::make_mut(game_state.write());
+                    if let GamePhase::ChoosingWords {
+                        round, choosing, ..
+                    } = &mut game_state.phase
+                    {
+                        let round = *round;
+                        let drawing = *choosing;
+                        let correct = Default::default();
+                        trans_at_round_end(
+                            &tx,
+                            Arc::make_mut(players.write()),
+                            game_state,
+                            &mut canvas_events,
+                            &mut guesses,
+                            round,
+                            drawing,
+                            correct,
+                        )?;
+                    }
+                }
+                GamePhase::Drawing {
+                    drawing, correct, ..
+                } if players
                     .read()
                     .keys()
                     .all(|uid| drawing == uid || correct.contains_key(uid))
+                    || !players.read().contains_key(drawing) =>
                 {
+                    // ...all players guessed correctly or the drawer is gone
                     let game_state = Arc::make_mut(game_state.write());
                     if let GamePhase::Drawing {
                         round,
@@ -503,6 +528,7 @@ async fn game_loop(
                         )?;
                     }
                 }
+                _ => {}
             }
         }
 
