@@ -165,7 +165,7 @@ pub enum Guess {
     TimeExpired(Lowercase),
     GameOver,
     FinalScore {
-        rank: usize,
+        rank: u64,
         user_id: UserId,
         score: u32,
     },

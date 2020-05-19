@@ -104,7 +104,7 @@ mod guess {
                     .unwrap_or("<unknown>")
             };
 
-            let rank_emoji = |rank: usize| match rank {
+            let rank_emoji = |rank| match rank {
                 1 => "🏆",
                 2 | 3 => "🏅",
                 _ => "🎖️",
