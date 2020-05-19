@@ -73,13 +73,13 @@ impl Component for ChooseName {
                     </div>
                     <article class="window-body">
                         <form onsubmit=on_join_game>
-                            <p>
+                            <p class="field-row-stacked">
+                                <label for="nickname">{"Nickname"}</label>
                                 <input
+                                    id="nickname"
                                     type="text"
-                                    placeholder="Nickname"
                                     oninput=on_change_nick
                                     value=&self.nick
-                                    style="width: 100%"
                                 />
                             </p>
                             <section class="field-row" style="justify-content: flex-end">

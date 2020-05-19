@@ -48,7 +48,6 @@ impl Component for GuessInput {
             <form onsubmit=on_submit>
                 <input
                     type="text"
-                    placeholder="Guess"
                     oninput=on_change_guess
                     value=&self.guess
                     style="width: 100%"

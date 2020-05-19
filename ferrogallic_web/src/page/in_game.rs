@@ -442,7 +442,7 @@ impl Component for InGame {
                         }).unwrap_or_default()}
                     </section>
                     <section style="flex: 1; height: 804px; display: flex; flex-direction: column">
-                        <div style="flex: 1; min-height: 0">
+                        <div style="flex: 1; min-height: 0; margin-bottom: 8px">
                             <component::GuessArea players=self.players.clone() guesses=self.guesses.clone()/>
                         </div>
                         <component::GuessInput game_link=self.link.clone(), guess=self.guess.clone()/>
