@@ -3,9 +3,7 @@ use crate::util::NeqAssign;
 use ferrogallic_shared::domain::Lowercase;
 use yew::{html, Component, ComponentLink, Event, Html, InputData, Properties, ShouldRender};
 
-pub enum Msg {
-    Submit,
-}
+pub enum Msg {}
 
 #[derive(Clone, Properties)]
 pub struct Props {
@@ -14,7 +12,6 @@ pub struct Props {
 }
 
 pub struct GuessInput {
-    link: ComponentLink<Self>,
     game_link: ComponentLink<page::InGame>,
     guess: Lowercase,
 }
@@ -23,23 +20,15 @@ impl Component for GuessInput {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(props: Self::Properties, _: ComponentLink<Self>) -> Self {
         Self {
-            link,
             game_link: props.game_link,
             guess: props.guess,
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
-        match msg {
-            Msg::Submit => {
-                if !self.guess.is_empty() {
-                    self.game_link.send_message(page::in_game::Msg::SendGuess);
-                }
-                true
-            }
-        }
+        match msg {}
     }
 
     fn change(&mut self, Props { game_link, guess }: Self::Properties) -> ShouldRender {
@@ -51,15 +40,14 @@ impl Component for GuessInput {
         let on_change_guess = self
             .game_link
             .callback(|e: InputData| page::in_game::Msg::SetGuess(Lowercase::new(e.value)));
-        let on_submit = self.link.callback(|e: Event| {
+        let on_submit = self.game_link.callback(|e: Event| {
             e.prevent_default();
-            Msg::Submit
+            page::in_game::Msg::SendGuess
         });
         html! {
             <form onsubmit=on_submit>
                 <input
                     type="text"
-                    placeholder="Guess"
                     oninput=on_change_guess
                     value=&self.guess
                     style="width: 100%"

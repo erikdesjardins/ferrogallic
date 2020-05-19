@@ -5,8 +5,8 @@ use ferrogallic_shared::api::game::{
     Canvas, Game, GamePhase, GameReq, GameState, Player, PlayerStatus,
 };
 use ferrogallic_shared::config::{
-    CLOSE_GUESS_LEVENSHTEIN, HEARTBEAT_SECONDS, NUMBER_OF_WORDS_TO_CHOOSE, PERFECT_GUESS_SCORE,
-    RX_SHARED_BUFFER, TX_BROADCAST_BUFFER, TX_SELF_DELAYED_BUFFER,
+    close_guess_levenshtein, FIRST_CORRECT_BONUS, HEARTBEAT_SECONDS, NUMBER_OF_WORDS_TO_CHOOSE,
+    PERFECT_GUESS_SCORE, RX_SHARED_BUFFER, TX_BROADCAST_BUFFER, TX_SELF_DELAYED_BUFFER,
 };
 use ferrogallic_shared::domain::{Epoch, Guess, Lobby, Lowercase, Nickname, UserId};
 use futures::{SinkExt, StreamExt};
@@ -350,7 +350,7 @@ async fn game_loop(
                         GamePhase::WaitingToStart => match guess.as_ref() {
                             "start" => trans_at_game_start(
                                 &tx,
-                                players.read(),
+                                Arc::make_mut(players.write()),
                                 Arc::make_mut(game_state.write()),
                                 &mut guesses,
                             )?,
@@ -363,8 +363,8 @@ async fn game_loop(
                                         .send(Guess::System(format!("Error: {}.", e).into()))?,
                                 }
                             }
-                            guess if guess.starts_with("time ") => {
-                                match guess.trim_start_matches("time ").parse() {
+                            guess if guess.starts_with("seconds ") => {
+                                match guess.trim_start_matches("seconds ").parse() {
                                     Ok(s) => {
                                         Arc::make_mut(game_state.write()).config.guess_seconds = s;
                                     }
@@ -393,12 +393,13 @@ async fn game_loop(
                                 if let GamePhase::Drawing { correct, .. } =
                                     &mut Arc::make_mut(game_state.write()).phase
                                 {
-                                    correct.insert(user_id, guesser_score(elapsed, guess_seconds));
+                                    let score = guesser_score(elapsed, guess_seconds, &*correct);
+                                    correct.insert(user_id, score);
                                 }
                                 (&tx, &mut guesses).send(Guess::Correct(user_id))?;
                             } else {
                                 let was_close =
-                                    if levenshtein(&guess, word) <= CLOSE_GUESS_LEVENSHTEIN {
+                                    if levenshtein(&guess, word) <= close_guess_levenshtein(word) {
                                         Some(guess.clone())
                                     } else {
                                         None
@@ -471,15 +472,40 @@ async fn game_loop(
         }
 
         if players.is_changed() || game_state.is_changed() {
-            if let GamePhase::Drawing {
-                drawing, correct, ..
-            } = &game_state.read().phase
-            {
-                if players
+            match &game_state.read().phase {
+                GamePhase::ChoosingWords { choosing, .. }
+                    if !players.read().contains_key(choosing) =>
+                {
+                    // ...the chooser is gone
+                    let game_state = Arc::make_mut(game_state.write());
+                    if let GamePhase::ChoosingWords {
+                        round, choosing, ..
+                    } = &mut game_state.phase
+                    {
+                        let round = *round;
+                        let drawing = *choosing;
+                        let correct = Default::default();
+                        trans_at_round_end(
+                            &tx,
+                            Arc::make_mut(players.write()),
+                            game_state,
+                            &mut canvas_events,
+                            &mut guesses,
+                            round,
+                            drawing,
+                            correct,
+                        )?;
+                    }
+                }
+                GamePhase::Drawing {
+                    drawing, correct, ..
+                } if players
                     .read()
                     .keys()
                     .all(|uid| drawing == uid || correct.contains_key(uid))
+                    || !players.read().contains_key(drawing) =>
                 {
+                    // ...all players guessed correctly or the drawer is gone
                     let game_state = Arc::make_mut(game_state.write());
                     if let GamePhase::Drawing {
                         round,
@@ -502,6 +528,7 @@ async fn game_loop(
                         )?;
                     }
                 }
+                _ => {}
             }
         }
 
@@ -558,10 +585,11 @@ impl GuessExt for (&broadcast::Sender<Broadcast>, &mut Vec<Guess>) {
 
 fn trans_at_game_start(
     tx: &broadcast::Sender<Broadcast>,
-    players: &BTreeMap<UserId, Player>,
+    players: &mut BTreeMap<UserId, Player>,
     game_state: &mut GameState,
     guesses: &mut Vec<Guess>,
 ) -> Result<(), GameLoopError> {
+    players.values_mut().for_each(|player| player.score = 0);
     (tx, &mut *guesses).clear()?;
     let round = 1;
     let next_choosing = match players.keys().next() {
@@ -677,16 +705,11 @@ fn trans_at_game_end(
     guesses: &mut Vec<Guess>,
 ) -> Result<(), GameLoopError> {
     (tx, &mut *guesses).send(Guess::GameOver)?;
-    let mut players_by_score = players
-        .iter()
-        .map(|(uid, player)| (*uid, player.score))
-        .collect::<Vec<_>>();
-    players_by_score.sort_by_key(|(_, score)| *score);
-    for (index, (user_id, score)) in players_by_score.into_iter().rev().enumerate() {
+    for (rank, user_id, player) in Player::rankings(&*players) {
         (tx, &mut *guesses).send(Guess::FinalScore {
-            rank: index + 1,
+            rank,
             user_id,
-            score,
+            score: player.score,
         })?;
     }
     game_state.phase = GamePhase::WaitingToStart;
@@ -695,9 +718,22 @@ fn trans_at_game_end(
     Ok(())
 }
 
-fn guesser_score(elapsed: time::Duration, guess_seconds: u8) -> u32 {
-    (guess_seconds as u32 - elapsed.whole_seconds() as u32) * PERFECT_GUESS_SCORE
-        / u32::from(guess_seconds)
+fn guesser_score(
+    elapsed: time::Duration,
+    guess_seconds: u8,
+    existing: &BTreeMap<UserId, u32>,
+) -> u32 {
+    let guess_millis = u32::from(guess_seconds) * 1000;
+    let elapsed_millis = elapsed.whole_milliseconds() as u32;
+    let time_score = (guess_millis - elapsed_millis) * PERFECT_GUESS_SCORE / guess_millis;
+
+    let first_bonus = if existing.is_empty() {
+        FIRST_CORRECT_BONUS
+    } else {
+        0
+    };
+
+    time_score + first_bonus
 }
 
 fn drawer_score(scores: impl Iterator<Item = u32>, player_count: u32) -> u32 {

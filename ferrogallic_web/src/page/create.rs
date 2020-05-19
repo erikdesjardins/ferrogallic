@@ -115,13 +115,13 @@ impl Component for Create {
                     </div>
                     <article class="window-body">
                         <form onsubmit=on_join_game>
-                            <p>
+                            <p class="field-row-stacked">
+                                <label for="new-lobby">{"Lobby name"}</label>
                                 <input
+                                    id="new-lobby"
                                     type="text"
-                                    placeholder="Lobby name"
                                     oninput=on_change_custom_lobby
                                     value=&self.custom_lobby_name
-                                    style="width: 100%"
                                 />
                             </p>
                             <section class="field-row" style="justify-content: flex-end">
@@ -137,13 +137,14 @@ impl Component for Create {
                         <div class="title-bar-text">{"Create New Game"}</div>
                     </div>
                     <article class="window-body">
-                        <p>
-                            {"Lobby name: "}
-                            {if self.generated_lobby_name.is_empty() {
-                                "..."
-                            } else {
-                                &self.generated_lobby_name
-                            }}
+                        <p class="field-row-stacked">
+                            <label for="random-lobby">{"Random lobby name"}</label>
+                            <input
+                                id="random-lobby"
+                                type="text"
+                                disabled=true
+                                value=&self.generated_lobby_name
+                            />
                         </p>
                         <section class="field-row" style="justify-content: flex-end">
                             <RouterButton<AppRoute> route=generated_lobby>

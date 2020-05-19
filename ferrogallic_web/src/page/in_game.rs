@@ -182,7 +182,9 @@ impl Component for InGame {
             }
             Msg::SendGuess => {
                 if let Some(ws) = &mut self.active_ws {
-                    ws.send_api(&GameReq::Guess(mem::take(&mut self.guess)));
+                    if !self.guess.is_empty() {
+                        ws.send_api(&GameReq::Guess(mem::take(&mut self.guess)));
+                    }
                 }
                 false
             }
@@ -440,7 +442,7 @@ impl Component for InGame {
                         }).unwrap_or_default()}
                     </section>
                     <section style="flex: 1; height: 804px; display: flex; flex-direction: column">
-                        <div style="flex: 1; min-height: 0">
+                        <div style="flex: 1; min-height: 0; margin-bottom: 8px">
                             <component::GuessArea players=self.players.clone() guesses=self.guesses.clone()/>
                         </div>
                         <component::GuessInput game_link=self.link.clone(), guess=self.guess.clone()/>

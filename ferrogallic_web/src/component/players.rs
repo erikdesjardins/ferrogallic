@@ -40,32 +40,10 @@ impl Component for Players {
     }
 
     fn view(&self) -> Html {
-        let player_rankings = {
-            let mut players_by_score = self
-                .players
-                .iter()
-                .map(|(uid, player)| (*uid, player.score))
-                .collect::<Vec<_>>();
-            players_by_score.sort_by_key(|(_, score)| *score);
-            players_by_score
-                .into_iter()
-                .rev()
-                .enumerate()
-                .scan(
-                    (u32::MAX, 0),
-                    |(prev_score, prev_rank), (index, (uid, score))| match () {
-                        _ if score == 0 => None,
-                        _ if score == *prev_score => Some((uid, *prev_rank)),
-                        _ => {
-                            let rank = index + 1;
-                            *prev_score = score;
-                            *prev_rank = rank;
-                            Some((uid, rank))
-                        }
-                    },
-                )
-                .collect::<BTreeMap<_, _>>()
-        };
+        let player_rankings = Player::rankings(self.players.as_ref())
+            .take_while(|(_, _, player)| player.score > 0)
+            .map(|(rank, uid, _)| (uid, rank))
+            .collect::<BTreeMap<_, _>>();
         let players = self
             .players
             .iter()

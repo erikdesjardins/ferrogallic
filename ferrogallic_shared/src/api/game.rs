@@ -95,6 +95,31 @@ pub struct Player {
     pub score: u32,
 }
 
+impl Player {
+    pub fn rankings<'a>(
+        players: impl IntoIterator<Item = (&'a UserId, &'a Player)>,
+    ) -> impl Iterator<Item = (u64, UserId, &'a Player)> {
+        let mut players_by_score = players
+            .into_iter()
+            .map(|(uid, player)| (*uid, player))
+            .collect::<Vec<_>>();
+        players_by_score.sort_by_key(|(_, player)| player.score);
+        players_by_score.into_iter().rev().enumerate().scan(
+            (u32::MAX, 0),
+            |(prev_score, prev_rank), (index, (uid, player))| {
+                if player.score == *prev_score {
+                    Some((*prev_rank, uid, player))
+                } else {
+                    let rank = index as u64 + 1;
+                    *prev_score = player.score;
+                    *prev_rank = rank;
+                    Some((rank, uid, player))
+                }
+            },
+        )
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialEq)]
 pub enum PlayerStatus {
     Connected,
