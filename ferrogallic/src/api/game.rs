@@ -5,8 +5,9 @@ use ferrogallic_shared::api::game::{
     Canvas, Game, GamePhase, GameReq, GameState, Player, PlayerStatus,
 };
 use ferrogallic_shared::config::{
-    close_guess_levenshtein, FIRST_CORRECT_BONUS, HEARTBEAT_SECONDS, NUMBER_OF_WORDS_TO_CHOOSE,
-    PERFECT_GUESS_SCORE, RX_SHARED_BUFFER, TX_BROADCAST_BUFFER, TX_SELF_DELAYED_BUFFER,
+    close_guess_levenshtein, FIRST_CORRECT_BONUS, HEARTBEAT_SECONDS, MINIMUM_GUESS_SCORE,
+    NUMBER_OF_WORDS_TO_CHOOSE, PERFECT_GUESS_SCORE, RX_SHARED_BUFFER, TX_BROADCAST_BUFFER,
+    TX_SELF_DELAYED_BUFFER,
 };
 use ferrogallic_shared::domain::{Epoch, Guess, Lobby, Lowercase, Nickname, UserId};
 use futures::{SinkExt, StreamExt};
@@ -735,7 +736,7 @@ fn guesser_score(
         0
     };
 
-    time_score + first_bonus
+    time_score + first_bonus + MINIMUM_GUESS_SCORE
 }
 
 fn drawer_score(scores: impl Iterator<Item = u32>, player_count: u32) -> u32 {

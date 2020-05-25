@@ -14,6 +14,7 @@ pub const NUMBER_OF_WORDS_TO_CHOOSE: usize = 3;
 pub const DEFAULT_ROUNDS: u8 = 3;
 pub const DEFAULT_GUESS_SECONDS: u16 = 120;
 pub const PERFECT_GUESS_SCORE: u32 = 500;
+pub const MINIMUM_GUESS_SCORE: u32 = 100;
 pub const FIRST_CORRECT_BONUS: u32 = 50;
 pub fn close_guess_levenshtein(word: &str) -> usize {
     match word.len() {
