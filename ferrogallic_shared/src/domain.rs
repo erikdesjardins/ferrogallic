@@ -187,7 +187,7 @@ pub enum LineWidth {
 
 impl Default for LineWidth {
     fn default() -> Self {
-        Self::Normal
+        Self::Medium
     }
 }
 
