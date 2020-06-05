@@ -1,6 +1,6 @@
 use crate::api::FetchServiceExt;
 use crate::app;
-use crate::route::AppRoute;
+use crate::route::{AppRoute, UrlEncoded};
 use anyhow::Error;
 use ferrogallic_shared::api::lobby::RandomLobbyName;
 use ferrogallic_shared::domain::Lobby;
@@ -58,7 +58,7 @@ impl Component for Create {
             Msg::GoToCustomLobby => {
                 self.router.send(RouteRequest::ChangeRoute(Route::from(
                     AppRoute::ChooseName {
-                        lobby: self.custom_lobby_name.clone(),
+                        lobby: UrlEncoded(self.custom_lobby_name.clone()),
                     },
                 )));
                 false
@@ -105,7 +105,7 @@ impl Component for Create {
             Msg::GoToCustomLobby
         });
         let generated_lobby = AppRoute::ChooseName {
-            lobby: self.generated_lobby_name.clone(),
+            lobby: UrlEncoded(self.generated_lobby_name.clone()),
         };
         html! {
             <main style="display: flex; justify-content: space-evenly; align-items: flex-start">

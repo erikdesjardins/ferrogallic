@@ -46,9 +46,9 @@ impl Component for App {
         let app_link = self.link.clone();
         let render_app = Router::render(move |route| match route {
             AppRoute::Create => html! {<page::Create app_link=app_link.clone()/>},
-            AppRoute::ChooseName { lobby } => html! {<page::ChooseName lobby=lobby/>},
+            AppRoute::ChooseName { lobby } => html! {<page::ChooseName lobby=lobby.0/>},
             AppRoute::InGame { lobby, nick } => {
-                html! {<page::InGame app_link=app_link.clone() lobby=lobby nick=nick/>}
+                html! {<page::InGame app_link=app_link.clone() lobby=lobby.0 nick=nick.0/>}
             }
         });
         let default_redirect = Router::redirect(|_| AppRoute::Create);
