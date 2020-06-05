@@ -1,4 +1,4 @@
-use crate::route::AppRoute;
+use crate::route::{AppRoute, UrlEncoded};
 use crate::util::NeqAssign;
 use ferrogallic_shared::domain::{Lobby, Nickname};
 use yew::agent::{Dispatched, Dispatcher};
@@ -45,8 +45,8 @@ impl Component for ChooseName {
             Msg::GoToLobby => {
                 self.router
                     .send(RouteRequest::ChangeRoute(Route::from(AppRoute::InGame {
-                        lobby: self.props.lobby.clone(),
-                        nick: self.nick.clone(),
+                        lobby: UrlEncoded(self.props.lobby.clone()),
+                        nick: UrlEncoded(self.nick.clone()),
                     })));
                 false
             }

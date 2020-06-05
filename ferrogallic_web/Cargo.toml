@@ -19,6 +19,7 @@ gloo = "0.2"
 itertools = "0.9"
 js-sys = "0.3"
 log = { version = "0.4", features = ["release_max_level_off"] }
+percent-encoding = "2.1"
 thiserror = "1.0"
 time = { version = "0.2", default-features = false }
 wasm-bindgen = { version = "0.2", features = ["strict-macro"] }
