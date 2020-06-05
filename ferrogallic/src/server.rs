@@ -8,11 +8,8 @@ use warp::Filter;
 
 #[allow(clippy::let_and_return)]
 pub async fn run(addr: SocketAddr) {
-    let favicon = warp::get()
-        .and(warp::path!("favicon.ico"))
-        .map(|| bytes(files::FAVICON, "image/x-icon"));
-
     let static_files = warp::get().and(warp::path("static")).and({
+        let favicon = warp::path!("favicon.png").map(|| bytes(files::FAVICON, "image/png"));
         let main_css = warp::path!("main.css").map(|| bytes(files::web::CSS, "text/css"));
         let main_js =
             warp::path!("main.js").map(|| bytes(files::web::JS, "application/javascript"));
@@ -24,7 +21,7 @@ pub async fn run(addr: SocketAddr) {
                 "application/javascript",
             )
         });
-        main_css.or(main_js).or(main_wasm).or(index_js)
+        favicon.or(main_css).or(main_js).or(main_wasm).or(index_js)
     });
 
     let index = warp::get().map(|| {
@@ -35,6 +32,7 @@ pub async fn run(addr: SocketAddr) {
                 "<head>",
                 "<meta name=robots content='noindex, nofollow'/>",
                 "<meta name=viewport content='width=1200, initial-scale=0.5, maximum-scale=1'>",
+                "<link rel=icon href='/static/favicon.png'/>",
                 "<link rel=stylesheet href='/static/main.css'/>",
                 "</head>",
                 "<body><script type=module src='/static/index.js'></script></body>",
@@ -58,8 +56,7 @@ pub async fn run(addr: SocketAddr) {
         game
     };
 
-    let server = favicon
-        .or(static_files)
+    let server = static_files
         .or(api)
         .or(ws)
         .or(index)
