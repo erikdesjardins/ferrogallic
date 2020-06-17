@@ -366,10 +366,16 @@ impl Component for InGame {
             PointerAction::Up(at)
         });
 
+        enum Status<'a> {
+            Waiting,
+            Choosing(&'a Player),
+            Drawing(&'a Player),
+        }
+
         let mut can_draw = false;
         let mut choose_words = None;
         let mut cur_round = None;
-        let mut active_player = None;
+        let mut status = Status::Waiting;
         let mut drawing_started = None;
         let mut guess_template = None;
         let _: () = match &self.game.phase {
@@ -382,7 +388,9 @@ impl Component for InGame {
                 words,
             } => {
                 cur_round = Some(*round);
-                active_player = self.players.get(choosing);
+                if let Some(player) = self.players.get(choosing) {
+                    status = Status::Choosing(player);
+                }
                 if *choosing == self.nick.user_id() {
                     choose_words = Some(words.clone());
                 }
@@ -396,7 +404,9 @@ impl Component for InGame {
                 started,
             } => {
                 cur_round = Some(*round);
-                active_player = self.players.get(drawing);
+                if let Some(player) = self.players.get(drawing) {
+                    status = Status::Drawing(player);
+                }
                 drawing_started = Some(*started);
                 if *drawing == self.nick.user_id() {
                     can_draw = true;
@@ -450,11 +460,11 @@ impl Component for InGame {
                 </article>
                 <footer class="status-bar">
                     <div>
-                        {active_player.map(|active_player| html! {
-                            <>{&active_player.nick}{" is drawing"}</>
-                        }).unwrap_or_else(|| html! {
-                            {"Waiting to start"}
-                        })}
+                        {match status {
+                            Status::Waiting => html! { {"Waiting to start"} },
+                            Status::Choosing(player) => html! { <>{&player.nick}{" is choosing a word"}</> },
+                            Status::Drawing(player) => html! { <>{&player.nick}{" is drawing"}</> },
+                        }}
                     </div>
                     <div>
                         {drawing_started.map(|drawing_started| html! {
