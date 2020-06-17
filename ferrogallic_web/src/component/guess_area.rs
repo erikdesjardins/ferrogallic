@@ -117,8 +117,8 @@ mod guess {
                 Guess::Help => html! {
                     <>
                     <li>{"❓ Type 'start' to start the game."}</li>
-                    <li>{"❓ Type 'rounds <number>' to set number of rounds."}</li>
-                    <li>{"❓ Type 'seconds <number>' to set guess timer."}</li>
+                    <li>{"❓ Type 'rounds <number>' to change number of rounds."}</li>
+                    <li>{"❓ Type 'seconds <number>' to change guess timer."}</li>
                     </>
                 },
                 Guess::Message(user_id, message) => html! {
