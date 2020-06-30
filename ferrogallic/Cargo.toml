@@ -1,6 +1,6 @@
 [package]
 name = "ferrogallic"
-version = "0.4.10"
+version = "0.4.11"
 authors = ["Erik Desjardins <erikdesjardins@users.noreply.github.com>"]
 description = "Clone of skribble.io."
 repository = "https://github.com/erikdesjardins/ferrogallic"
