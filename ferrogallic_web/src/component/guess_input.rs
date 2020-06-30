@@ -1,7 +1,7 @@
 use crate::page;
 use crate::util::NeqAssign;
 use ferrogallic_shared::domain::Lowercase;
-use yew::{html, Component, ComponentLink, Event, Html, InputData, Properties, ShouldRender};
+use yew::{html, Component, ComponentLink, FocusEvent, Html, InputData, Properties, ShouldRender};
 
 pub enum Msg {}
 
@@ -40,7 +40,7 @@ impl Component for GuessInput {
         let on_change_guess = self
             .game_link
             .callback(|e: InputData| page::in_game::Msg::SetGuess(Lowercase::new(e.value)));
-        let on_submit = self.game_link.callback(|e: Event| {
+        let on_submit = self.game_link.callback(|e: FocusEvent| {
             e.prevent_default();
             page::in_game::Msg::SendGuess
         });

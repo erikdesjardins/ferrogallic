@@ -1,7 +1,7 @@
 use crate::app;
 use anyhow::Error;
 use std::sync::Arc;
-use web_sys::window;
+use yew::utils::window;
 use yew::{html, Callback, Component, ComponentLink, Html, Properties, ShouldRender};
 
 pub enum Msg {}
@@ -56,10 +56,8 @@ impl Component for ErrorPopup {
             .join("; caused by: ");
         let on_close = self.app_link.callback(|_| app::Msg::ClearError);
         let on_refresh = Callback::from(|_| {
-            if let Some(location) = window().map(|w| w.location()) {
-                if let Err(e) = location.reload() {
-                    log::error!("Failed to reload: {:?}", e);
-                }
+            if let Err(e) = window().location().reload() {
+                log::error!("Failed to reload: {:?}", e);
             }
         });
 

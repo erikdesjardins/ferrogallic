@@ -2,7 +2,7 @@ use crate::route::{AppRoute, UrlEncoded};
 use crate::util::NeqAssign;
 use ferrogallic_shared::domain::{Lobby, Nickname};
 use yew::agent::{Dispatched, Dispatcher};
-use yew::{html, Component, ComponentLink, Event, Html, InputData, Properties, ShouldRender};
+use yew::{html, Component, ComponentLink, FocusEvent, Html, InputData, Properties, ShouldRender};
 use yew_router::agent::{RouteAgent, RouteRequest};
 use yew_router::route::Route;
 
@@ -61,7 +61,7 @@ impl Component for ChooseName {
         let on_change_nick = self
             .link
             .callback(|e: InputData| Msg::SetNick(Nickname::new(e.value)));
-        let on_join_game = self.link.callback(|e: Event| {
+        let on_join_game = self.link.callback(|e: FocusEvent| {
             e.prevent_default();
             Msg::GoToLobby
         });

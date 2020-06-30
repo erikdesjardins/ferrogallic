@@ -17,7 +17,7 @@ use time::Duration;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{CanvasRenderingContext2d, Element, HtmlCanvasElement, KeyboardEvent};
 use yew::services::render::{RenderService, RenderTask};
-use yew::services::websocket::{WebSocketService, WebSocketStatus};
+use yew::services::websocket::WebSocketStatus;
 use yew::utils::window;
 use yew::{
     html, Callback, Component, ComponentLink, Html, NodeRef, PointerEvent, Properties, ShouldRender,
@@ -55,8 +55,6 @@ pub struct Props {
 pub struct InGame {
     link: ComponentLink<Self>,
     app_link: ComponentLink<app::App>,
-    ws_service: WebSocketService,
-    render_service: RenderService,
     lobby: Lobby,
     nick: Nickname,
     active_ws: Option<WebSocketApiTask<Game>>,
@@ -93,8 +91,6 @@ impl Component for InGame {
         Self {
             link,
             app_link: props.app_link,
-            ws_service: WebSocketService::new(),
-            render_service: RenderService::new(),
             lobby: props.lobby,
             nick: props.nick,
             active_ws: None,
@@ -331,7 +327,7 @@ impl Component for InGame {
                 }
             }
 
-            let started_ws = self.ws_service.connect_api(
+            let started_ws = WebSocketServiceExt::connect_api(
                 &self.link,
                 |res| match res {
                     Ok(msg) => Msg::Message(msg),
@@ -532,10 +528,9 @@ impl InGame {
 
     fn schedule_render_to_canvas(&mut self) {
         if let scheduled @ None = &mut self.scheduled_render {
-            *scheduled = Some(
-                self.render_service
-                    .request_animation_frame(self.link.callback(|_| Msg::Render)),
-            );
+            *scheduled = Some(RenderService::request_animation_frame(
+                self.link.callback(|_| Msg::Render),
+            ));
         }
     }
 

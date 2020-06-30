@@ -5,8 +5,8 @@ use anyhow::Error;
 use ferrogallic_shared::api::lobby::RandomLobbyName;
 use ferrogallic_shared::domain::Lobby;
 use yew::agent::{Dispatched, Dispatcher};
-use yew::services::fetch::{FetchService, FetchTask};
-use yew::{html, Component, ComponentLink, Event, Html, InputData, Properties, ShouldRender};
+use yew::services::fetch::FetchTask;
+use yew::{html, Component, ComponentLink, FocusEvent, Html, InputData, Properties, ShouldRender};
 use yew_router::agent::{RouteAgent, RouteRequest};
 use yew_router::components::RouterButton;
 use yew_router::route::Route;
@@ -27,7 +27,6 @@ pub struct Create {
     link: ComponentLink<Self>,
     app_link: ComponentLink<app::App>,
     router: Dispatcher<RouteAgent>,
-    fetch_service: FetchService,
     custom_lobby_name: Lobby,
     fetching_generated_lobby_name: Option<FetchTask>,
     generated_lobby_name: Lobby,
@@ -42,7 +41,6 @@ impl Component for Create {
             link,
             app_link,
             router: RouteAgent::dispatcher(),
-            fetch_service: FetchService::new(),
             custom_lobby_name: Lobby::new(""),
             fetching_generated_lobby_name: None,
             generated_lobby_name: Lobby::new(""),
@@ -81,12 +79,10 @@ impl Component for Create {
 
     fn rendered(&mut self, first_render: bool) {
         if first_render {
-            let started_fetch = self
-                .fetch_service
-                .fetch_api(&self.link, &(), |res| match res {
-                    Ok(RandomLobbyName { lobby }) => Msg::SetGeneratedLobbyName(lobby),
-                    Err(e) => Msg::SetGlobalError(e.context("Failed to receive lobby name")),
-                });
+            let started_fetch = FetchServiceExt::fetch_api(&self.link, &(), |res| match res {
+                Ok(RandomLobbyName { lobby }) => Msg::SetGeneratedLobbyName(lobby),
+                Err(e) => Msg::SetGlobalError(e.context("Failed to receive lobby name")),
+            });
             match started_fetch {
                 Ok(task) => self.fetching_generated_lobby_name = Some(task),
                 Err(e) => self
@@ -100,7 +96,7 @@ impl Component for Create {
         let on_change_custom_lobby = self
             .link
             .callback(|e: InputData| Msg::SetCustomLobbyName(Lobby::new(e.value)));
-        let on_join_game = self.link.callback(|e: Event| {
+        let on_join_game = self.link.callback(|e: FocusEvent| {
             e.prevent_default();
             Msg::GoToCustomLobby
         });
