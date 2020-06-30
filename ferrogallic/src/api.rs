@@ -71,6 +71,7 @@ where
         .and(with_cloned(state))
         .map(move |ws: warp::ws::Ws, state| {
             ws.max_message_size(MAX_WS_MESSAGE_BYTES)
+                .max_frame_size(MAX_WS_MESSAGE_BYTES)
                 .on_upgrade(move |websocket| async move {
                     let fut = f(state, TypedWebSocket::new(websocket));
                     if let Err(e) = fut.await {
