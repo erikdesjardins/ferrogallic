@@ -18,7 +18,6 @@ pub struct Props {
 
 pub struct Timer {
     link: ComponentLink<Timer>,
-    interval_service: IntervalService,
     props: Props,
     active_timer: IntervalTask,
 }
@@ -28,11 +27,9 @@ impl Component for Timer {
     type Properties = Props;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let mut interval_service = IntervalService::new();
-        let active_timer = spawn_timer(&mut interval_service, &link);
+        let active_timer = spawn_timer(&link);
         Self {
             link,
-            interval_service,
             props,
             active_timer,
         }
@@ -46,7 +43,7 @@ impl Component for Timer {
 
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
         if self.props.neq_assign(props) {
-            self.active_timer = spawn_timer(&mut self.interval_service, &self.link);
+            self.active_timer = spawn_timer(&self.link);
             true
         } else {
             false
@@ -64,11 +61,8 @@ impl Component for Timer {
     }
 }
 
-fn spawn_timer(
-    interval_service: &mut IntervalService,
-    link: &ComponentLink<Timer>,
-) -> IntervalTask {
-    interval_service.spawn(
+fn spawn_timer(link: &ComponentLink<Timer>) -> IntervalTask {
+    IntervalService::spawn(
         std::time::Duration::from_secs(1),
         link.callback(|()| Msg::Tick),
     )

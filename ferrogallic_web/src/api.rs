@@ -8,24 +8,16 @@ use yew::services::fetch::{FetchService, FetchTask, Request, Response, StatusCod
 use yew::services::websocket::{WebSocketService, WebSocketStatus, WebSocketTask};
 use yew::{Component, ComponentLink};
 
-pub trait FetchServiceExt {
-    fn fetch_api<C: Component, T: ApiEndpoint>(
-        &mut self,
-        link: &ComponentLink<C>,
-        req: &T::Req,
-        f: impl Fn(Result<T, Error>) -> C::Message + 'static,
-    ) -> Result<FetchTask, Error>;
-}
+pub struct FetchServiceExt(());
 
-impl FetchServiceExt for FetchService {
-    fn fetch_api<C: Component, T: ApiEndpoint>(
-        &mut self,
+impl FetchServiceExt {
+    pub fn fetch_api<C: Component, T: ApiEndpoint>(
         link: &ComponentLink<C>,
         req: &T::Req,
         f: impl Fn(Result<T, Error>) -> C::Message + 'static,
     ) -> Result<FetchTask, Error> {
         let request = Request::post(format!("/{}", T::PATH)).body(Bincode(req))?;
-        self.fetch_binary(
+        FetchService::fetch_binary(
             request,
             link.callback(move |response: Response<Bincode<Result<T, Error>>>| {
                 let (_, Bincode(data)) = response.into_parts();
@@ -39,18 +31,10 @@ impl FetchServiceExt for FetchService {
 #[error("Status {0}")]
 pub struct BadStatusCode(StatusCode);
 
-pub trait WebSocketServiceExt {
-    fn connect_api<C: Component, T: WsEndpoint>(
-        &mut self,
-        link: &ComponentLink<C>,
-        f: impl Fn(Result<T, Error>) -> C::Message + 'static,
-        on_notification: impl Fn(WebSocketStatus) -> C::Message + 'static,
-    ) -> Result<WebSocketApiTask<T>, Error>;
-}
+pub struct WebSocketServiceExt(());
 
-impl WebSocketServiceExt for WebSocketService {
-    fn connect_api<C: Component, T: WsEndpoint>(
-        &mut self,
+impl WebSocketServiceExt {
+    pub fn connect_api<C: Component, T: WsEndpoint>(
         link: &ComponentLink<C>,
         f: impl Fn(Result<T, Error>) -> C::Message + 'static,
         on_notification: impl Fn(WebSocketStatus) -> C::Message + 'static,
@@ -67,13 +51,12 @@ impl WebSocketServiceExt for WebSocketService {
                 return Err(anyhow!("Failed to get window.location"));
             }
         };
-        let task = self
-            .connect(
-                &url,
-                link.callback(move |Bincode(res)| f(res)),
-                link.callback(on_notification),
-            )
-            .map_err(|e| anyhow!(e.to_string()))?;
+        let task = WebSocketService::connect_binary(
+            &url,
+            link.callback(move |Bincode(res)| f(res)),
+            link.callback(on_notification),
+        )
+        .map_err(|e| anyhow!(e.to_string()))?;
         Ok(WebSocketApiTask(task, PhantomData))
     }
 }
