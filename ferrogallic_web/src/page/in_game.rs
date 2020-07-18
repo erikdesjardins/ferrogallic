@@ -56,6 +56,7 @@ pub struct InGame {
     app_link: ComponentLink<app::App>,
     lobby: Lobby,
     nick: Nickname,
+    user_id: UserId,
     active_ws: Option<WebSocketApiTask<Game>>,
     scheduled_render: Option<RenderTask>,
     canvas_ref: NodeRef,
@@ -90,6 +91,7 @@ impl Component for InGame {
             link,
             app_link: props.app_link,
             lobby: props.lobby,
+            user_id: props.nick.user_id(),
             nick: props.nick,
             active_ws: None,
             scheduled_render: None,
@@ -282,7 +284,15 @@ impl Component for InGame {
             nick,
         } = props;
         self.app_link = app_link;
-        self.lobby.neq_assign(lobby) | self.nick.neq_assign(nick)
+        let new_lobby = self.lobby.neq_assign(lobby);
+        let new_nick = if nick != self.nick {
+            self.user_id = nick.user_id();
+            self.nick = nick;
+            true
+        } else {
+            false
+        };
+        new_lobby | new_nick
     }
 
     fn rendered(&mut self, first_render: bool) {
@@ -351,7 +361,7 @@ impl Component for InGame {
                 if let Some(player) = self.players.get(choosing) {
                     status = Status::Choosing(player);
                 }
-                if *choosing == self.nick.user_id() {
+                if *choosing == self.user_id {
                     choose_words = Some(words.clone());
                 }
             }
@@ -368,7 +378,7 @@ impl Component for InGame {
                     status = Status::Drawing(player);
                 }
                 drawing_started = Some(*started);
-                if *drawing == self.nick.user_id() {
+                if *drawing == self.user_id {
                     can_draw = true;
                     guess_template = Some((word.clone(), component::guess_template::Reveal::All));
                 } else {
