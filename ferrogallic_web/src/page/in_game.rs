@@ -396,11 +396,11 @@ impl Component for InGame {
             on_keydown = self.link.callback(|e: KeyboardEvent| {
                 let ctrl = e.ctrl_key();
                 let msg = match e.key_code() {
-                    49 /* 1 */ if !ctrl => Msg::SetTool(Tool::Pen(LineWidth::Small)),
-                    50 /* 2 */ if !ctrl => Msg::SetTool(Tool::Pen(LineWidth::Normal)),
-                    51 /* 3 */ if !ctrl => Msg::SetTool(Tool::Pen(LineWidth::Medium)),
-                    52 /* 4 */ if !ctrl => Msg::SetTool(Tool::Pen(LineWidth::Large)),
-                    53 /* 5 */ if !ctrl => Msg::SetTool(Tool::Pen(LineWidth::Extra)),
+                    49 /* 1 */ if !ctrl => Msg::SetTool(Tool::Pen(LineWidth::R0)),
+                    50 /* 2 */ if !ctrl => Msg::SetTool(Tool::Pen(LineWidth::R1)),
+                    51 /* 3 */ if !ctrl => Msg::SetTool(Tool::Pen(LineWidth::R2)),
+                    52 /* 4 */ if !ctrl => Msg::SetTool(Tool::Pen(LineWidth::R4)),
+                    53 /* 5 */ if !ctrl => Msg::SetTool(Tool::Pen(LineWidth::R7)),
                     70 /* f */ if !ctrl => Msg::SetTool(Tool::Fill),
                     90 /* z */ if ctrl => Msg::Undo,
                     _ => return Msg::Ignore,
