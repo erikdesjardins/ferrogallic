@@ -38,7 +38,7 @@ impl Component for ColorToolbar {
         let colors = Color::ALL
             .iter()
             .map(|&color| {
-                let onclick = self
+                let on_click = self
                     .game_link
                     .callback(move |_| page::in_game::Msg::SetColor(color));
                 let active = (color == self.color).as_some("active");
@@ -47,7 +47,7 @@ impl Component for ColorToolbar {
                     color.r, color.g, color.b
                 );
                 html! {
-                    <button onclick=onclick class=("color-button", active) style=style/>
+                    <button onclick=on_click class=("color-button", active) style=style/>
                 }
             })
             .collect::<Html>();

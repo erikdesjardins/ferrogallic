@@ -39,12 +39,12 @@ impl Component for ChoosePopup {
             .words
             .iter()
             .map(|word| {
-                let onclick = self.game_link.callback({
+                let on_click = self.game_link.callback({
                     let word = word.clone();
                     move |_| page::in_game::Msg::ChooseWord(word.clone())
                 });
                 html! {
-                    <button onclick=onclick>{word}</button>
+                    <button onclick=on_click>{word}</button>
                 }
             })
             .collect::<Html>();

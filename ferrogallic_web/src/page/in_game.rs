@@ -7,18 +7,17 @@ use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::game::{Canvas, Game, GamePhase, GameReq, GameState, Player};
 use ferrogallic_shared::config::{CANVAS_HEIGHT, CANVAS_WIDTH};
 use ferrogallic_shared::domain::{
-    Color, Epoch, Guess, I12Pair, Lobby, Lowercase, Nickname, Tool, UserId,
+    Color, Epoch, Guess, I12Pair, LineWidth, Lobby, Lowercase, Nickname, Tool, UserId,
 };
 use gloo::events::{EventListener, EventListenerOptions};
 use std::collections::BTreeMap;
 use std::mem;
 use std::sync::Arc;
 use time::Duration;
-use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{CanvasRenderingContext2d, Element, HtmlCanvasElement, KeyboardEvent};
+use wasm_bindgen::JsCast;
+use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, HtmlElement, KeyboardEvent};
 use yew::services::render::{RenderService, RenderTask};
 use yew::services::websocket::WebSocketStatus;
-use yew::utils::window;
 use yew::{
     html, Callback, Component, ComponentLink, Html, NodeRef, PointerEvent, Properties, ShouldRender,
 };
@@ -57,6 +56,7 @@ pub struct InGame {
     app_link: ComponentLink<app::App>,
     lobby: Lobby,
     nick: Nickname,
+    user_id: UserId,
     active_ws: Option<WebSocketApiTask<Game>>,
     scheduled_render: Option<RenderTask>,
     canvas_ref: NodeRef,
@@ -74,7 +74,6 @@ struct CanvasState {
     vr: VirtualCanvas,
     context: CanvasRenderingContext2d,
     _disable_touchstart: EventListener,
-    _hook_ctrl_z: EventListener,
 }
 
 #[derive(Copy, Clone)]
@@ -92,6 +91,7 @@ impl Component for InGame {
             link,
             app_link: props.app_link,
             lobby: props.lobby,
+            user_id: props.nick.user_id(),
             nick: props.nick,
             active_ws: None,
             scheduled_render: None,
@@ -284,7 +284,15 @@ impl Component for InGame {
             nick,
         } = props;
         self.app_link = app_link;
-        self.lobby.neq_assign(lobby) | self.nick.neq_assign(nick)
+        let new_lobby = self.lobby.neq_assign(lobby);
+        let new_nick = if nick != self.nick {
+            self.user_id = nick.user_id();
+            self.nick = nick;
+            true
+        } else {
+            false
+        };
+        new_lobby | new_nick
     }
 
     fn rendered(&mut self, first_render: bool) {
@@ -302,27 +310,10 @@ impl Component for InGame {
                         EventListenerOptions::enable_prevent_default(),
                         |e| e.prevent_default(),
                     );
-                    let hook_ctrl_z = EventListener::new_with_options(
-                        &window().into(),
-                        "keydown",
-                        EventListenerOptions::enable_prevent_default(),
-                        {
-                            let link = self.link.clone();
-                            move |e| {
-                                let e = KeyboardEvent::from(JsValue::from(e));
-                                let z = 90;
-                                if e.ctrl_key() && e.key_code() == z {
-                                    e.prevent_default();
-                                    link.send_message(Msg::Undo);
-                                }
-                            }
-                        },
-                    );
                     self.canvas = Some(CanvasState {
                         vr: VirtualCanvas::new(),
                         context,
                         _disable_touchstart: disable_touchstart,
-                        _hook_ctrl_z: hook_ctrl_z,
                     });
                 }
             }
@@ -345,23 +336,6 @@ impl Component for InGame {
     }
 
     fn view(&self) -> Html {
-        let on_pointer_down = self.handle_pointer_event_if(
-            |e| e.buttons() == 1,
-            |e, target, at| {
-                if let Err(e) = target.set_pointer_capture(e.pointer_id()) {
-                    log::warn!("Failed to set pointer capture: {:?}", e);
-                }
-                PointerAction::Down(at)
-            },
-        );
-        let on_pointer_move = self.handle_pointer_event(|_, _, at| PointerAction::Move(at));
-        let on_pointer_up = self.handle_pointer_event(|e, target, at| {
-            if let Err(e) = target.release_pointer_capture(e.pointer_id()) {
-                log::warn!("Failed to release pointer capture: {:?}", e);
-            }
-            PointerAction::Up(at)
-        });
-
         enum Status<'a> {
             Waiting,
             Choosing(&'a Player),
@@ -387,7 +361,7 @@ impl Component for InGame {
                 if let Some(player) = self.players.get(choosing) {
                     status = Status::Choosing(player);
                 }
-                if *choosing == self.nick.user_id() {
+                if *choosing == self.user_id {
                     choose_words = Some(words.clone());
                 }
             }
@@ -404,7 +378,7 @@ impl Component for InGame {
                     status = Status::Drawing(player);
                 }
                 drawing_started = Some(*started);
-                if *drawing == self.nick.user_id() {
+                if *drawing == self.user_id {
                     can_draw = true;
                     guess_template = Some((word.clone(), component::guess_template::Reveal::All));
                 } else {
@@ -413,6 +387,53 @@ impl Component for InGame {
                 }
             }
         };
+
+        let on_keydown;
+        let on_pointerdown;
+        let on_pointermove;
+        let on_pointerup;
+        if can_draw {
+            on_keydown = self.link.callback(|e: KeyboardEvent| {
+                let ctrl = e.ctrl_key();
+                let msg = match e.key_code() {
+                    49 /* 1 */ if !ctrl => Msg::SetTool(Tool::Pen(LineWidth::R0)),
+                    50 /* 2 */ if !ctrl => Msg::SetTool(Tool::Pen(LineWidth::R1)),
+                    51 /* 3 */ if !ctrl => Msg::SetTool(Tool::Pen(LineWidth::R2)),
+                    52 /* 4 */ if !ctrl => Msg::SetTool(Tool::Pen(LineWidth::R4)),
+                    53 /* 5 */ if !ctrl => Msg::SetTool(Tool::Pen(LineWidth::R7)),
+                    70 /* f */ if !ctrl => Msg::SetTool(Tool::Fill),
+                    90 /* z */ if ctrl => Msg::Undo,
+                    _ => return Msg::Ignore,
+                };
+                e.prevent_default();
+                msg
+            });
+            on_pointerdown = self.handle_pointer_event_if(
+                |e| e.buttons() == 1,
+                |e, target, at| {
+                    if let Err(e) = target.focus() {
+                        log::warn!("Failed to focus canvas: {:?}", e);
+                    }
+                    if let Err(e) = target.set_pointer_capture(e.pointer_id()) {
+                        log::warn!("Failed to set pointer capture: {:?}", e);
+                    }
+                    PointerAction::Down(at)
+                },
+            );
+            on_pointermove = self.handle_pointer_event(|_, _, at| PointerAction::Move(at));
+            on_pointerup = self.handle_pointer_event(|e, target, at| {
+                if let Err(e) = target.release_pointer_capture(e.pointer_id()) {
+                    log::warn!("Failed to release pointer capture: {:?}", e);
+                }
+                PointerAction::Up(at)
+            });
+        } else {
+            on_keydown = Callback::from(|_| {});
+            let noop = Callback::from(|_| {});
+            on_pointerdown = noop.clone();
+            on_pointermove = noop.clone();
+            on_pointerup = noop;
+        }
 
         html! {
             <main class="window" style="max-width: 1500px; margin: auto">
@@ -423,14 +444,15 @@ impl Component for InGame {
                     <section style="flex: 1; height: 804px">
                         <component::Players game_link=self.link.clone() players=self.players.clone()/>
                     </section>
-                    <section style="margin: 0 8px; position: relative">
+                    <section style="margin: 0 8px; position: relative" onkeydown=on_keydown>
                         <fieldset style="padding-block-start: 2px; padding-block-end: 0px; padding-inline-start: 2px; padding-inline-end: 2px;">
                             <canvas
                                 ref=self.canvas_ref.clone()
-                                style=if can_draw { "" } else { "pointer-events: none" }
-                                onpointerdown=on_pointer_down
-                                onpointermove=on_pointer_move
-                                onpointerup=on_pointer_up
+                                style={"outline: initial" /* disable focus outline */}
+                                tabindex={-1 /* allow focus */}
+                                onpointerdown=on_pointerdown
+                                onpointermove=on_pointermove
+                                onpointerup=on_pointerup
                                 width=CANVAS_WIDTH
                                 height=CANVAS_HEIGHT
                             />
@@ -488,7 +510,7 @@ impl Component for InGame {
 impl InGame {
     fn handle_pointer_event(
         &self,
-        f: impl Fn(&PointerEvent, &Element, I12Pair) -> PointerAction + 'static,
+        f: impl Fn(&PointerEvent, &HtmlElement, I12Pair) -> PointerAction + 'static,
     ) -> Callback<PointerEvent> {
         self.handle_pointer_event_if(|_| true, f)
     }
@@ -496,11 +518,11 @@ impl InGame {
     fn handle_pointer_event_if(
         &self,
         pred: impl Fn(&PointerEvent) -> bool + 'static,
-        f: impl Fn(&PointerEvent, &Element, I12Pair) -> PointerAction + 'static,
+        f: impl Fn(&PointerEvent, &HtmlElement, I12Pair) -> PointerAction + 'static,
     ) -> Callback<PointerEvent> {
         self.link.callback(move |e: PointerEvent| {
             if pred(&e) {
-                if let Some(target) = e.target().and_then(|t| t.dyn_into::<Element>().ok()) {
+                if let Some(target) = e.target().and_then(|t| t.dyn_into::<HtmlElement>().ok()) {
                     e.prevent_default();
                     let origin = target.get_bounding_client_rect();
                     Msg::Pointer(f(

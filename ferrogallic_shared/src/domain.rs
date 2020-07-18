@@ -178,35 +178,35 @@ fn guess_size() {
 
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub enum LineWidth {
-    Small,
-    Normal,
-    Medium,
-    Large,
-    Extra,
+    R0,
+    R1,
+    R2,
+    R4,
+    R7,
 }
 
 impl Default for LineWidth {
     fn default() -> Self {
-        Self::Medium
+        Self::R2
     }
 }
 
 impl LineWidth {
     pub fn scanlines(self) -> &'static [u16] {
         match self {
-            Self::Small => {
+            Self::R0 => {
                 // 0.5px radius
                 // + 1
                 &[1]
             }
-            Self::Normal => {
+            Self::R1 => {
                 // 1px radius
                 // +++
                 // +++ 3
                 // +++ 3
                 &[3, 3]
             }
-            Self::Medium => {
+            Self::R2 => {
                 // 2px radius
                 //  +++
                 // +++++
@@ -215,7 +215,7 @@ impl LineWidth {
                 //  +++  3
                 &[5, 5, 3]
             }
-            Self::Large => {
+            Self::R4 => {
                 // 4px radius
                 //   +++++
                 //  +++++++
@@ -228,7 +228,7 @@ impl LineWidth {
                 //   +++++   5
                 &[9, 9, 9, 7, 5]
             }
-            Self::Extra => {
+            Self::R7 => {
                 // 7px radius
                 &[15, 15, 15, 13, 13, 11, 9, 5]
             }
@@ -250,11 +250,11 @@ impl Default for Tool {
 
 impl Tool {
     pub const ALL: [Self; 6] = [
-        Self::Pen(LineWidth::Small),
-        Self::Pen(LineWidth::Normal),
-        Self::Pen(LineWidth::Medium),
-        Self::Pen(LineWidth::Large),
-        Self::Pen(LineWidth::Extra),
+        Self::Pen(LineWidth::R0),
+        Self::Pen(LineWidth::R1),
+        Self::Pen(LineWidth::R2),
+        Self::Pen(LineWidth::R4),
+        Self::Pen(LineWidth::R7),
         Self::Fill,
     ];
 }

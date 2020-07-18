@@ -38,25 +38,32 @@ impl Component for ToolToolbar {
         let tools = Tool::ALL
             .iter()
             .map(|&tool| {
-                let onclick = self
+                let on_click = self
                     .game_link
                     .callback(move |_| page::in_game::Msg::SetTool(tool));
                 let active = (tool == self.tool).as_some("active");
-                let (text, style) = match tool {
+                let (text, style, title) = match tool {
                     Tool::Pen(width) => (
                         "⚫",
                         match width {
-                            LineWidth::Small => "font-size: 2px",
-                            LineWidth::Normal => "font-size: 4px",
-                            LineWidth::Medium => "font-size: 6px",
-                            LineWidth::Large => "font-size: 10px",
-                            LineWidth::Extra => "font-size: 14px",
+                            LineWidth::R0 => "font-size: 2px",
+                            LineWidth::R1 => "font-size: 4px",
+                            LineWidth::R2 => "font-size: 6px",
+                            LineWidth::R4 => "font-size: 10px",
+                            LineWidth::R7 => "font-size: 14px",
+                        },
+                        match width {
+                            LineWidth::R0 => "Pen (1)",
+                            LineWidth::R1 => "Pen (2)",
+                            LineWidth::R2 => "Pen (3)",
+                            LineWidth::R4 => "Pen (4)",
+                            LineWidth::R7 => "Pen (5)",
                         },
                     ),
-                    Tool::Fill => ("▧", "font-size: 28px"),
+                    Tool::Fill => ("▧", "font-size: 28px", "Fill (F)"),
                 };
                 html! {
-                    <button class=("tool-button", active) onclick=onclick style=style>
+                    <button class=("tool-button", active) title=title onclick=on_click style=style>
                         {text}
                     </button>
                 }
@@ -65,7 +72,7 @@ impl Component for ToolToolbar {
 
         let on_undo = self.game_link.callback(|_| page::in_game::Msg::Undo);
         let undo = html! {
-            <button class="tool-button" onclick=on_undo style="font-size: 28px">
+            <button class="tool-button" title="Undo (Ctrl-Z)" onclick=on_undo style="font-size: 28px">
                 {"↶"}
             </button>
         };
