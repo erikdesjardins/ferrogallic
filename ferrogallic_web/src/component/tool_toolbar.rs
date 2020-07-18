@@ -38,11 +38,11 @@ impl Component for ToolToolbar {
         let tools = Tool::ALL
             .iter()
             .map(|&tool| {
-                let onclick = self
+                let on_click = self
                     .game_link
                     .callback(move |_| page::in_game::Msg::SetTool(tool));
                 let active = (tool == self.tool).as_some("active");
-                let (text, style) = match tool {
+                let (text, style, title) = match tool {
                     Tool::Pen(width) => (
                         "⚫",
                         match width {
@@ -52,11 +52,18 @@ impl Component for ToolToolbar {
                             LineWidth::Large => "font-size: 10px",
                             LineWidth::Extra => "font-size: 14px",
                         },
+                        match width {
+                            LineWidth::Small => "Pen (1)",
+                            LineWidth::Normal => "Pen (2)",
+                            LineWidth::Medium => "Pen (3)",
+                            LineWidth::Large => "Pen (4)",
+                            LineWidth::Extra => "Pen (5)",
+                        },
                     ),
-                    Tool::Fill => ("▧", "font-size: 28px"),
+                    Tool::Fill => ("▧", "font-size: 28px", "Fill (F)"),
                 };
                 html! {
-                    <button class=("tool-button", active) onclick=onclick style=style>
+                    <button class=("tool-button", active) title=title onclick=on_click style=style>
                         {text}
                     </button>
                 }
@@ -65,7 +72,7 @@ impl Component for ToolToolbar {
 
         let on_undo = self.game_link.callback(|_| page::in_game::Msg::Undo);
         let undo = html! {
-            <button class="tool-button" onclick=on_undo style="font-size: 28px">
+            <button class="tool-button" title="Undo (Ctrl-Z)" onclick=on_undo style="font-size: 28px">
                 {"↶"}
             </button>
         };
