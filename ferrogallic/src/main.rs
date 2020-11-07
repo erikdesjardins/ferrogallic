@@ -5,7 +5,6 @@
 )]
 
 use std::env;
-use structopt::StructOpt;
 
 mod api;
 mod files;
@@ -19,7 +18,7 @@ async fn main() {
     let opt::Options {
         verbose,
         listen_addr,
-    } = opt::Options::from_args();
+    } = argh::from_env();
 
     let listen_addr = match listen_addr {
         Some(addr) => addr,
