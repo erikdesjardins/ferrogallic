@@ -294,14 +294,11 @@ impl I12Pair {
 #[test]
 fn i12pair_exhaustive() {
     for x in -(1 << 11)..(1 << 11) {
-        let pair = I12Pair::new(x, 0x7a5);
-        assert_eq!(pair.x(), x);
-        assert_eq!(pair.y(), 0x7a5);
-    }
-    for y in -(1 << 11)..(1 << 11) {
-        let pair = I12Pair::new(0x7a5, y);
-        assert_eq!(pair.x(), 0x7a5);
-        assert_eq!(pair.y(), y);
+        for y in -(1 << 11)..(1 << 11) {
+            let pair = I12Pair::new(x, y);
+            assert_eq!(pair.x(), x);
+            assert_eq!(pair.y(), y);
+        }
     }
 }
 

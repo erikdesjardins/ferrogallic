@@ -1,12 +1,13 @@
+use argh::FromArgs;
 use std::net::SocketAddr;
-use structopt::StructOpt;
 
-#[derive(StructOpt, Debug)]
-#[structopt(about)]
+/// Clone of skribble.io.
+#[derive(Debug, FromArgs)]
 pub struct Options {
-    /// Logging verbosity (-v info, -vv debug, -vvv trace)
-    #[structopt(short = "v", long = "verbose", parse(from_occurrences), global = true)]
+    /// logging verbosity (-v info, -v -v debug, -v -v -v trace)
+    #[argh(switch, short = 'v')]
     pub verbose: u8,
 
+    #[argh(positional)]
     pub listen_addr: Option<SocketAddr>,
 }
