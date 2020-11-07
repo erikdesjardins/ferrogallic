@@ -14,7 +14,7 @@ bincode = "1.2"
 bytes = "0.5"
 ferrogallic_shared = { path = "../ferrogallic_shared" }
 futures = "0.3"
-env_logger = { version = "0.7", default-features = false, features = ["humantime"] }
+env_logger = { version = "0.8", default-features = false, features = ["humantime"] }
 log = "0.4"
 rand = "0.7"
 strsim = "0.10"
