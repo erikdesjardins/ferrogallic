@@ -13,7 +13,7 @@ mod reply;
 mod server;
 mod words;
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() {
     let opt::Options {
         verbose,

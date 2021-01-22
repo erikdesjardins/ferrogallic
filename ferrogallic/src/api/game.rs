@@ -24,7 +24,8 @@ use time::OffsetDateTime;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::task::spawn;
-use tokio::time::{interval, DelayQueue, Duration, Instant};
+use tokio::time::{interval, Duration, Instant};
+use tokio_util::time::DelayQueue;
 
 #[derive(Default)]
 pub struct ActiveLobbies {
@@ -53,8 +54,8 @@ pub async fn join_game(
     let user_id = nick.user_id();
     let epoch = Epoch::next();
 
-    let (mut tx_lobby, rx_onboard) = loop {
-        let mut tx_lobby = state
+    let (tx_lobby, rx_onboard) = loop {
+        let tx_lobby = state
             .tx_lobby
             .lock()
             .await
@@ -83,9 +84,8 @@ pub async fn join_game(
             }
         }
     };
-    let mut tx_lobby_for_disconnect = tx_lobby.clone();
 
-    let handle_messages = || async move {
+    let handle_messages = || async {
         let Onboarding {
             mut rx_broadcast,
             messages,
@@ -110,11 +110,11 @@ pub async fn join_game(
                             log::trace!("Player={} Lobby={} Epoch={} ignored: {:?}", nick, lobby, epoch, broadcast);
                         }
                     },
-                    Err(broadcast::RecvError::Lagged(msgs)) => {
+                    Err(broadcast::error::RecvError::Lagged(msgs)) => {
                         log::warn!("Player={} Lobby={} Epoch={} lagged {} messages", nick, lobby, epoch, msgs);
                         return Ok(());
                     }
-                    Err(broadcast::RecvError::Closed) => {
+                    Err(broadcast::error::RecvError::Closed) => {
                         log::info!("Player={} Lobby={} Epoch={} dropped on shutdown", nick, lobby, epoch);
                         return Ok(());
                     }
@@ -143,9 +143,7 @@ pub async fn join_game(
     let res = handle_messages().await;
 
     // if this fails, nothing we can do at this point, everyone is gone
-    let _ = tx_lobby_for_disconnect
-        .send(GameLoop::Disconnect(user_id, epoch))
-        .await;
+    let _ = tx_lobby.send(GameLoop::Disconnect(user_id, epoch)).await;
 
     res
 }
@@ -187,7 +185,7 @@ async fn run_game_loop(
 
     spawn({
         let lobby = lobby.clone();
-        let mut tx_self_sending_and_receiving_on_same_task_can_deadlock = tx_self;
+        let tx_self_sending_and_receiving_on_same_task_can_deadlock = tx_self;
         async move {
             let mut delay = DelayQueue::new();
             let mut heartbeat = interval(Duration::from_secs(HEARTBEAT_SECONDS));
@@ -248,8 +246,8 @@ enum GameLoopError {
     DelayRecvGone,
 }
 
-impl From<broadcast::SendError<Broadcast>> for GameLoopError {
-    fn from(_: broadcast::SendError<Broadcast>) -> Self {
+impl From<broadcast::error::SendError<Broadcast>> for GameLoopError {
+    fn from(_: broadcast::error::SendError<Broadcast>) -> Self {
         Self::NoPlayers
     }
 }

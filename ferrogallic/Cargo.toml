@@ -11,16 +11,16 @@ edition = "2018"
 anyhow = "1.0"
 argh = "0.1"
 bincode = "1.2"
-bytes = "0.5"
 ferrogallic_shared = { path = "../ferrogallic_shared" }
 futures = "0.3"
 env_logger = { version = "0.8", default-features = false, features = ["humantime"] }
 log = "0.4"
-rand = "0.7"
+rand = "0.8"
 strsim = "0.10"
 time = { version = "0.2", default-features = false, features = ["std"] }
-tokio = { version = "0.2" , features = ["macros", "rt-threaded", "sync", "time", "parking_lot"] }
-warp = { version = "0.2", default-features = false, features = ["websocket"] }
+tokio = { version = "1.0", features = ["fs", "io-util", "macros", "rt", "rt-multi-thread", "sync", "time", "parking_lot"] }
+tokio-util = { version = "0.6.2", features = ["time"] }
+warp = { version = "0.3", default-features = false, features = ["websocket"] }
 
 [profile.release]
 panic = "abort"
