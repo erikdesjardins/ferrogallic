@@ -52,7 +52,7 @@ impl Component for Timer {
 
     fn view(&self) -> Html {
         let elapsed =
-            Duration::milliseconds(Date::now() as i64 - self.props.started.timestamp() * 1000);
+            Duration::milliseconds(Date::now() as i64 - self.props.started.unix_timestamp() * 1000);
         let time_left = self.props.count_down_from - elapsed;
         let seconds_left = time_left.whole_seconds();
         html! {

@@ -1,5 +1,4 @@
 use anyhow::Error;
-use bytes::buf::BufExt;
 use ferrogallic_shared::api::{ApiEndpoint, WsEndpoint};
 use ferrogallic_shared::config::MAX_WS_MESSAGE_BYTES;
 use futures::ready;
@@ -9,6 +8,7 @@ use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use warp::http::{Response, StatusCode};
+use warp::hyper::body::Buf;
 use warp::ws::{Message, WebSocket};
 use warp::{Filter, Rejection, Reply, Sink, Stream};
 
@@ -30,7 +30,7 @@ where
         .and(warp::body::aggregate())
         .and(with_cloned(state))
         .map(move |buf, state| {
-            let req = match bincode::deserialize_from(BufExt::reader(buf)) {
+            let req = match bincode::deserialize_from(Buf::reader(buf)) {
                 Ok(req) => req,
                 Err(e) => {
                     log::warn!("Failed to deserialize request '{}': {}", T::PATH, e);

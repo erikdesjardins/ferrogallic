@@ -16,7 +16,7 @@ boolinator = "2.4"
 console_error_panic_hook = "0.1"
 ferrogallic_shared = { path = "../ferrogallic_shared" }
 gloo = "0.2"
-itertools = "0.9"
+itertools = "0.10"
 js-sys = "0.3"
 log = { version = "0.4", features = ["release_max_level_off"] }
 percent-encoding = "2.1"
