@@ -39,7 +39,7 @@ impl Component for GuessInput {
     fn view(&self) -> Html {
         let on_change_guess = self
             .game_link
-            .callback(|e: InputData| page::in_game::Msg::SetGuess(Lowercase::new(e.value)));
+            .callback(|e: InputData| page::in_game::Msg::SetGuess(Lowercase::new(e.value.trim())));
         let on_submit = self.game_link.callback(|e: FocusEvent| {
             e.prevent_default();
             page::in_game::Msg::SendGuess
