@@ -2,9 +2,10 @@ use crate::api;
 use crate::files;
 use crate::reply::{bytes, string};
 use ferrogallic_shared::config::MAX_REQUEST_BYTES;
+use ferrogallic_shared::paths;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use warp::Filter;
+use warp::{http, Filter};
 
 #[allow(clippy::let_and_return)]
 pub async fn run(addr: SocketAddr) {
@@ -24,6 +25,24 @@ pub async fn run(addr: SocketAddr) {
         favicon.or(main_css).or(main_js).or(main_wasm).or(index_js)
     });
 
+    let audio_files = warp::get()
+        .and(warp::path(paths::audio::PREFIX))
+        .and({
+            api::wav(paths::audio::CHIMES, files::audio::CHIMES)
+                .or(api::wav(paths::audio::CHORD, files::audio::CHORD))
+                .or(api::wav(paths::audio::DING, files::audio::DING))
+                .or(api::wav(paths::audio::TADA, files::audio::TADA))
+                .or(api::wav(paths::audio::ASTERISK, files::audio::ASTERISK))
+                .or(api::wav(paths::audio::EXCLAM, files::audio::EXCLAM))
+                .or(api::wav(paths::audio::MAXIMIZE, files::audio::MAXIMIZE))
+                .or(api::wav(paths::audio::SHUTDOWN, files::audio::SHUTDOWN))
+            // .or(api::wav(paths::audio::STARTUP, files::audio::STARTUP))
+        })
+        .with(warp::reply::with::header(
+            http::header::CACHE_CONTROL,
+            "public, max-age=86400",
+        ));
+
     let index = warp::get().map(|| {
         string(
             concat!(
@@ -34,7 +53,7 @@ pub async fn run(addr: SocketAddr) {
                 "<meta name=viewport content='width=1200, initial-scale=0.5, maximum-scale=1'>",
                 "<link rel=icon href='/static/favicon.png'/>",
                 "<link rel=stylesheet href='/static/main.css'/>",
-                "<link rel=preload as=script crossorigin href='/static/main.js'>",
+                "<link rel=modulepreload as=script crossorigin href='/static/main.js'>",
                 "<link rel=preload as=fetch crossorigin href='/static/main.wasm'>",
                 "</head>",
                 "<body><script type=module src='/static/index.js'></script></body>",
@@ -59,6 +78,7 @@ pub async fn run(addr: SocketAddr) {
     };
 
     let server = static_files
+        .or(audio_files)
         .or(api)
         .or(ws)
         .or(index)

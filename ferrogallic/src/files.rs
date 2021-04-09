@@ -1,3 +1,4 @@
+pub mod audio;
 pub mod web;
 
 // from https://rustacean.net/
