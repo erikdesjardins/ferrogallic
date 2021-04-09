@@ -53,7 +53,7 @@ pub async fn run(addr: SocketAddr) {
                 "<meta name=viewport content='width=1200, initial-scale=0.5, maximum-scale=1'>",
                 "<link rel=icon href='/static/favicon.png'/>",
                 "<link rel=stylesheet href='/static/main.css'/>",
-                "<link rel=preload as=script crossorigin href='/static/main.js'>",
+                "<link rel=modulepreload as=script crossorigin href='/static/main.js'>",
                 "<link rel=preload as=fetch crossorigin href='/static/main.wasm'>",
                 "</head>",
                 "<body><script type=module src='/static/index.js'></script></body>",
