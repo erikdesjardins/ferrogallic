@@ -1,7 +1,8 @@
 #![allow(
     clippy::redundant_pattern_matching,
     clippy::single_match,
-    clippy::too_many_arguments
+    clippy::too_many_arguments,
+    clippy::vec_init_then_push
 )]
 
 use std::env;
