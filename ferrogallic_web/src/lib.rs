@@ -5,6 +5,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 
 mod api;
 mod app;
+mod audio;
 mod canvas;
 mod component;
 mod page;

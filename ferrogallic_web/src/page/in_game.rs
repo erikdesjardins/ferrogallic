@@ -1,5 +1,6 @@
 use crate::api::{WebSocketApiTask, WebSocketServiceExt};
 use crate::app;
+use crate::audio::AudioService;
 use crate::canvas::VirtualCanvas;
 use crate::component;
 use crate::util::NeqAssign;
@@ -58,6 +59,7 @@ pub struct InGame {
     nick: Nickname,
     user_id: UserId,
     active_ws: Option<WebSocketApiTask<Game>>,
+    audio: AudioService,
     scheduled_render: Option<RenderTask>,
     canvas_ref: NodeRef,
     canvas: Option<CanvasState>,
@@ -94,6 +96,7 @@ impl Component for InGame {
             user_id: props.nick.user_id(),
             nick: props.nick,
             active_ws: None,
+            audio: AudioService::new(),
             scheduled_render: None,
             canvas_ref: Default::default(),
             canvas: None,
@@ -151,6 +154,7 @@ impl Component for InGame {
                     true
                 }
                 Game::Guess(guess) => {
+                    self.play_sound(&guess);
                     Arc::make_mut(&mut self.guesses).push(guess);
                     true
                 }
@@ -540,6 +544,12 @@ impl InGame {
                 Msg::Ignore
             }
         })
+    }
+
+    fn play_sound(&mut self, guess: &Guess) {
+        if let Err(e) = self.audio.handle_guess(self.user_id, guess) {
+            log::error!("Failed to play sound: {:?}", e);
+        }
     }
 
     fn render_to_virtual(&mut self, event: Canvas) {

@@ -1,3 +1,4 @@
+use crate::reply::bytes;
 use anyhow::Error;
 use ferrogallic_shared::api::{ApiEndpoint, WsEndpoint};
 use ferrogallic_shared::config::MAX_WS_MESSAGE_BYTES;
@@ -79,6 +80,15 @@ where
                     }
                 })
         })
+}
+
+pub fn wav(
+    path: &'static str,
+    data: &'static [u8],
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
+    warp::path(path)
+        .and(warp::path::end())
+        .map(move || bytes(data, "audio/wav"))
 }
 
 fn with_cloned<T: Clone + Send>(val: T) -> impl Filter<Extract = (T,), Error = Infallible> + Clone {
