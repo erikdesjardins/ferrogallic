@@ -9,5 +9,5 @@ pub struct Options {
     pub verbose: u8,
 
     #[argh(positional)]
-    pub listen_addr: Option<SocketAddr>,
+    pub listen_addr: SocketAddr,
 }
