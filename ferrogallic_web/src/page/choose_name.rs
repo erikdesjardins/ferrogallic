@@ -79,7 +79,7 @@ impl Component for ChooseName {
                                     id="nickname"
                                     type="text"
                                     oninput=on_change_nick
-                                    value=&self.nick
+                                    value=self.nick.to_string()
                                 />
                             </p>
                             <section class="field-row" style="justify-content: flex-end">

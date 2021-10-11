@@ -49,7 +49,7 @@ impl Component for GuessInput {
                 <input
                     type="text"
                     oninput=on_change_guess
-                    value=&self.guess
+                    value=self.guess.to_string()
                     style="width: 100%"
                 />
             </form>

@@ -15,18 +15,18 @@ anyhow = "1.0"
 boolinator = "2.4"
 console_error_panic_hook = "0.1"
 ferrogallic_shared = { path = "../ferrogallic_shared" }
-gloo = "0.2"
+gloo = "0.3"
 itertools = "0.10"
 js-sys = "0.3"
 log = { version = "0.4", features = ["release_max_level_off"] }
 percent-encoding = "2.1"
 thiserror = "1.0"
-time = { version = "0.2", default-features = false }
+time = { version = "0.3", default-features = false }
 wasm-bindgen = { version = "0.2", features = ["strict-macro"] }
 wasm-logger = "0.2"
 web-sys = { version = "0.3", features = ["Window", "Location", "HtmlAudioElement", "HtmlCanvasElement", "CanvasRenderingContext2d", "Element", "DomRect", "ImageData", "TouchList", "Touch"] }
-yew = "0.17"
-yew-router = "0.14"
+yew = "0.18"
+yew-router = "0.15"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"

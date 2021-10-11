@@ -2,7 +2,7 @@ use crate::page;
 use crate::util::NeqAssign;
 use boolinator::Boolinator;
 use ferrogallic_shared::domain::Color;
-use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
+use yew::{classes, html, Component, ComponentLink, Html, Properties, ShouldRender};
 
 pub enum Msg {}
 
@@ -47,7 +47,7 @@ impl Component for ColorToolbar {
                     color.r, color.g, color.b
                 );
                 html! {
-                    <button onclick=on_click class=("color-button", active) style=style/>
+                    <button onclick=on_click class=classes!("color-button", active) style=style/>
                 }
             })
             .collect::<Html>();

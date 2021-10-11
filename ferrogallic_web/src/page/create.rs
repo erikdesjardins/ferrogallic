@@ -117,7 +117,7 @@ impl Component for Create {
                                     id="new-lobby"
                                     type="text"
                                     oninput=on_change_custom_lobby
-                                    value=&self.custom_lobby_name
+                                    value=self.custom_lobby_name.to_string()
                                 />
                             </p>
                             <section class="field-row" style="justify-content: flex-end">
@@ -139,7 +139,7 @@ impl Component for Create {
                                 id="random-lobby"
                                 type="text"
                                 disabled=true
-                                value=&self.generated_lobby_name
+                                value=self.generated_lobby_name.to_string()
                             />
                         </p>
                         <section class="field-row" style="justify-content: flex-end">
