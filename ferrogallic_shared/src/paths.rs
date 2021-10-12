@@ -12,3 +12,11 @@ pub mod audio {
     pub const SHUTDOWN: &str = "shutdown.wav";
     pub const STARTUP: &str = "startup.wav";
 }
+
+pub mod api {
+    pub const PREFIX: &str = "api";
+}
+
+pub mod ws {
+    pub const PREFIX: &str = "ws";
+}

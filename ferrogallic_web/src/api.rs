@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::{ApiEndpoint, WsEndpoint};
+use ferrogallic_shared::paths;
 use std::marker::PhantomData;
 use thiserror::Error;
 use web_sys::window;
@@ -16,7 +17,8 @@ impl FetchServiceExt {
         req: &T::Req,
         f: impl Fn(Result<T, Error>) -> C::Message + 'static,
     ) -> Result<FetchTask, Error> {
-        let request = Request::post(format!("/{}", T::PATH)).body(Bincode(req))?;
+        let url = format!("/{}/{}", paths::api::PREFIX, T::PATH);
+        let request = Request::post(url).body(Bincode(req))?;
         FetchService::fetch_binary(
             request,
             link.callback(move |response: Response<Bincode<Result<T, Error>>>| {
@@ -45,7 +47,7 @@ impl WebSocketServiceExt {
         {
             Some((proto, host)) => {
                 let proto = if proto == "http:" { "ws:" } else { "wss:" };
-                format!("{}//{}/{}", proto, host, T::PATH)
+                format!("{}//{}/{}/{}", proto, host, paths::ws::PREFIX, T::PATH)
             }
             None => {
                 return Err(anyhow!("Failed to get window.location"));
