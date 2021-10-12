@@ -453,12 +453,12 @@ impl Component for InGame {
                             <canvas
                                 ref=self.canvas_ref.clone()
                                 style={"outline: initial" /* disable focus outline */}
-                                tabindex={-1 /* allow focus */}
+                                tabindex={"-1" /* allow focus */}
                                 onpointerdown=on_pointerdown
                                 onpointermove=on_pointermove
                                 onpointerup=on_pointerup
-                                width=CANVAS_WIDTH
-                                height=CANVAS_HEIGHT
+                                width=CANVAS_WIDTH.to_string()
+                                height=CANVAS_HEIGHT.to_string()
                             />
                         </fieldset>
                         <div style="position: relative">
@@ -470,14 +470,14 @@ impl Component for InGame {
                             />
                         </div>
                         {choose_words.map(|words| html! {
-                            <component::ChoosePopup game_link=self.link.clone(), words=words />
+                            <component::ChoosePopup game_link=self.link.clone() words=words />
                         }).unwrap_or_default()}
                     </section>
                     <section style="flex: 1; height: 804px; display: flex; flex-direction: column">
                         <div style="flex: 1; min-height: 0; margin-bottom: 8px">
                             <component::GuessArea players=self.players.clone() guesses=self.guesses.clone()/>
                         </div>
-                        <component::GuessInput game_link=self.link.clone(), guess=self.guess.clone()/>
+                        <component::GuessInput game_link=self.link.clone() guess=self.guess.clone()/>
                     </section>
                 </article>
                 <footer class="status-bar">

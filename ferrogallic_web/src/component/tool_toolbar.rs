@@ -2,7 +2,7 @@ use crate::page;
 use crate::util::NeqAssign;
 use boolinator::Boolinator;
 use ferrogallic_shared::domain::{LineWidth, Tool};
-use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
+use yew::{classes, html, Component, ComponentLink, Html, Properties, ShouldRender};
 
 pub enum Msg {}
 
@@ -63,7 +63,7 @@ impl Component for ToolToolbar {
                     Tool::Fill => ("▧", "font-size: 28px", "Fill (F)"),
                 };
                 html! {
-                    <button class=("tool-button", active) title=title onclick=on_click style=style>
+                    <button class=classes!("tool-button", active) title=title onclick=on_click style=style>
                         {text}
                     </button>
                 }

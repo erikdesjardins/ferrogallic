@@ -2,7 +2,7 @@ use crate::util::NeqAssign;
 use boolinator::Boolinator;
 use ferrogallic_shared::domain::Lowercase;
 use itertools::{EitherOrBoth, Itertools};
-use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
+use yew::{classes, html, Component, ComponentLink, Html, Properties, ShouldRender};
 
 pub enum Msg {}
 
@@ -62,14 +62,14 @@ impl Component for GuessTemplate {
                 Both(template, guess) => {
                     let underlined = template.is_underlined().as_some("underlined");
                     let invalid = (!template.is_valid(guess)).as_some("invalid");
-                    html! { <span class=("guess-char", underlined, invalid)>{guess}</span> }
+                    html! { <span class=classes!("guess-char", underlined, invalid)>{guess}</span> }
                 }
                 Left(template) => {
                     let underlined = template.is_underlined().as_some("underlined");
-                    html! { <span class=("guess-char", underlined)>{template.char()}</span> }
+                    html! { <span class=classes!("guess-char", underlined)>{template.char()}</span> }
                 }
                 Right(guess) => {
-                    html! { <span class=("guess-char", "invalid")>{guess}</span> }
+                    html! { <span class=classes!("guess-char", "invalid")>{guess}</span> }
                 }
             })
             .collect::<Html>();
