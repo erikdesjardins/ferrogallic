@@ -66,16 +66,17 @@ pub async fn run(addr: SocketAddr) {
     let state = Arc::default();
 
     let api = warp::post()
+        .and(warp::path(paths::api::PREFIX))
         .and(warp::body::content_length_limit(MAX_REQUEST_BYTES))
         .and({
             let random_lobby_name = api::endpoint((), api::lobby::random_name);
             random_lobby_name
         });
 
-    let ws = {
+    let ws = warp::path(paths::ws::PREFIX).and({
         let game = api::websocket(state, api::game::join_game);
         game
-    };
+    });
 
     let server = static_files
         .or(audio_files)
