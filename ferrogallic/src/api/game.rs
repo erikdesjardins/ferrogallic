@@ -692,6 +692,7 @@ fn trans_at_round_end(
     }
 }
 
+#[allow(clippy::ptr_arg)]
 fn trans_at_game_end(
     tx: &broadcast::Sender<Broadcast>,
     players: &mut BTreeMap<UserId, Player>,
