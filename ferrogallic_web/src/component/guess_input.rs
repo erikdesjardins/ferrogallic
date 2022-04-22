@@ -1,55 +1,45 @@
+use crate::dom::InputEventExt;
 use crate::page;
-use crate::util::NeqAssign;
 use ferrogallic_shared::domain::Lowercase;
-use yew::{html, Component, ComponentLink, FocusEvent, Html, InputData, Properties, ShouldRender};
+use web_sys::InputEvent;
+use yew::{html, Callback, Component, Context, FocusEvent, Html, Properties};
 
 pub enum Msg {}
 
-#[derive(Clone, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct Props {
-    pub game_link: ComponentLink<page::InGame>,
+    pub game_link: Callback<page::in_game::Msg>,
     pub guess: Lowercase,
 }
 
-pub struct GuessInput {
-    game_link: ComponentLink<page::InGame>,
-    guess: Lowercase,
-}
+pub struct GuessInput {}
 
 impl Component for GuessInput {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, _: ComponentLink<Self>) -> Self {
-        Self {
-            game_link: props.game_link,
-            guess: props.guess,
-        }
+    fn create(_ctx: &Context<Self>) -> Self {
+        Self {}
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {}
     }
 
-    fn change(&mut self, Props { game_link, guess }: Self::Properties) -> ShouldRender {
-        self.game_link = game_link;
-        self.guess.neq_assign(guess)
-    }
-
-    fn view(&self) -> Html {
-        let on_change_guess = self
-            .game_link
-            .callback(|e: InputData| page::in_game::Msg::SetGuess(Lowercase::new(e.value.trim())));
-        let on_submit = self.game_link.callback(|e: FocusEvent| {
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let on_change_guess = ctx.props().game_link.reform(|e: InputEvent| {
+            page::in_game::Msg::SetGuess(Lowercase::new(e.target_value().trim()))
+        });
+        let on_submit = ctx.props().game_link.reform(|e: FocusEvent| {
             e.prevent_default();
             page::in_game::Msg::SendGuess
         });
         html! {
-            <form onsubmit=on_submit>
+            <form onsubmit={on_submit}>
                 <input
                     type="text"
-                    oninput=on_change_guess
-                    value=self.guess.to_string()
+                    oninput={on_change_guess}
+                    value={ctx.props().guess.to_string()}
                     style="width: 100%"
                 />
             </form>

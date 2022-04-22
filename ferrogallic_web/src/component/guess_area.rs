@@ -1,21 +1,19 @@
-use crate::util::NeqAssign;
+use crate::util::ArcPtrEq;
 use ferrogallic_shared::api::game::Player;
 use ferrogallic_shared::domain::{Guess, UserId};
 use std::collections::BTreeMap;
-use std::sync::Arc;
 use web_sys::Element;
-use yew::{html, Component, ComponentLink, Html, NodeRef, Properties, ShouldRender};
+use yew::{html, Component, Context, Html, NodeRef, Properties};
 
 pub enum Msg {}
 
-#[derive(Clone, Properties, PartialEq)]
+#[derive(Properties, PartialEq)]
 pub struct Props {
-    pub players: Arc<BTreeMap<UserId, Player>>,
-    pub guesses: Arc<Vec<Guess>>,
+    pub players: ArcPtrEq<BTreeMap<UserId, Player>>,
+    pub guesses: ArcPtrEq<Vec<Guess>>,
 }
 
 pub struct GuessArea {
-    props: Props,
     area_ref: NodeRef,
 }
 
@@ -23,37 +21,32 @@ impl Component for GuessArea {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, _: ComponentLink<Self>) -> Self {
+    fn create(_ctx: &Context<Self>) -> Self {
         Self {
-            props,
             area_ref: Default::default(),
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {}
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        self.props.neq_assign(props)
-    }
-
-    fn rendered(&mut self, _first_render: bool) {
+    fn rendered(&mut self, _ctx: &Context<Self>, _first_render: bool) {
         if let Some(area) = self.area_ref.cast::<Element>() {
             area.set_scroll_top(i32::MAX);
         }
     }
 
-    fn view(&self) -> Html {
-        let guesses = self
-            .props
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let guesses = ctx
+            .props()
             .guesses
             .iter()
-            .map(|guess| html! { <guess::GuessLine players=self.props.players.clone() guess=guess.clone()/> })
+            .map(|guess| html! { <guess::GuessLine players={ctx.props().players.clone()} guess={guess.clone()}/> })
             .collect::<Html>();
 
         html! {
-            <ul ref=self.area_ref.clone() class="tree-view" style="height: 100%; overflow-y: scroll">{guesses}</ul>
+            <ul ref={self.area_ref.clone()} class="tree-view" style="height: 100%; overflow-y: scroll">{guesses}</ul>
         }
     }
 }
@@ -63,41 +56,29 @@ mod guess {
 
     pub enum Msg {}
 
-    #[derive(Clone, Properties)]
+    #[derive(PartialEq, Properties)]
     pub struct Props {
-        pub players: Arc<BTreeMap<UserId, Player>>,
+        pub players: ArcPtrEq<BTreeMap<UserId, Player>>,
         pub guess: Guess,
     }
 
-    impl PartialEq for Props {
-        fn eq(&self, Self { players, guess }: &Self) -> bool {
-            Arc::ptr_eq(&self.players, players) && &self.guess == guess
-        }
-    }
-
-    pub struct GuessLine {
-        props: Props,
-    }
+    pub struct GuessLine {}
 
     impl Component for GuessLine {
         type Message = Msg;
         type Properties = Props;
 
-        fn create(props: Self::Properties, _: ComponentLink<Self>) -> Self {
-            Self { props }
+        fn create(_ctx: &Context<Self>) -> Self {
+            Self {}
         }
 
-        fn update(&mut self, msg: Self::Message) -> ShouldRender {
+        fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
             match msg {}
         }
 
-        fn change(&mut self, props: Self::Properties) -> ShouldRender {
-            self.props.neq_assign(props)
-        }
-
-        fn view(&self) -> Html {
+        fn view(&self, ctx: &Context<Self>) -> Html {
             let nickname = |user_id| {
-                self.props
+                ctx.props()
                     .players
                     .get(&user_id)
                     .map(|p| &*p.nick)
@@ -110,7 +91,7 @@ mod guess {
                 _ => "🎖️",
             };
 
-            match &self.props.guess {
+            match &ctx.props().guess {
                 Guess::System(system) => html! {
                     <li>{"🖥️ "}{system}</li>
                 },
