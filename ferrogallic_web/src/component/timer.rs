@@ -1,69 +1,48 @@
-use crate::util::NeqAssign;
+use gloo::timers::callback::Interval;
 use js_sys::Date;
 use time::Duration;
 use time::OffsetDateTime;
-use yew::services::interval::IntervalTask;
-use yew::services::IntervalService;
-use yew::{html, Component, ComponentLink, Html, Properties, ShouldRender};
+use yew::{html, Component, Context, Html, Properties};
 
 pub enum Msg {
     Tick,
 }
 
-#[derive(Clone, Properties, PartialEq, Eq)]
+#[derive(Properties, PartialEq)]
 pub struct Props {
     pub started: OffsetDateTime,
     pub count_down_from: Duration,
 }
 
 pub struct Timer {
-    link: ComponentLink<Timer>,
-    props: Props,
-    active_timer: IntervalTask,
+    #[allow(dead_code)] // timer is cancelled when this is dropped
+    active_timer: Interval,
 }
 
 impl Component for Timer {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let active_timer = spawn_timer(&link);
-        Self {
-            link,
-            props,
-            active_timer,
-        }
+    fn create(ctx: &Context<Self>) -> Self {
+        let link = ctx.link().clone();
+        let active_timer = Interval::new(1000, move || link.send_message(Msg::Tick));
+        Self { active_timer }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::Tick => true,
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        if self.props.neq_assign(props) {
-            self.active_timer = spawn_timer(&self.link);
-            true
-        } else {
-            false
-        }
-    }
-
-    fn view(&self) -> Html {
-        let elapsed =
-            Duration::milliseconds(Date::now() as i64 - self.props.started.unix_timestamp() * 1000);
-        let time_left = self.props.count_down_from - elapsed;
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let elapsed = Duration::milliseconds(
+            Date::now() as i64 - ctx.props().started.unix_timestamp() * 1000,
+        );
+        let time_left = ctx.props().count_down_from - elapsed;
         let seconds_left = time_left.whole_seconds();
         html! {
             {seconds_left}
         }
     }
-}
-
-fn spawn_timer(link: &ComponentLink<Timer>) -> IntervalTask {
-    IntervalService::spawn(
-        std::time::Duration::from_secs(1),
-        link.callback(|()| Msg::Tick),
-    )
 }

@@ -201,12 +201,8 @@ async fn run_game_loop(
                             return;
                         }
                     },
-                    Some(delayed) = delay.next() => match delayed {
-                        Ok(delayed) => delayed.into_inner(),
-                        Err(e) => {
-                            log::error!("Lobby={} stopping timer due to error: {}", lobby, e);
-                            return;
-                        }
+                    Some(delayed) = delay.next() => {
+                        delayed.into_inner()
                     },
                     now = heartbeat.tick() => {
                         let _: Instant = now;
@@ -696,6 +692,7 @@ fn trans_at_round_end(
     }
 }
 
+#[allow(clippy::ptr_arg)]
 fn trans_at_game_end(
     tx: &broadcast::Sender<Broadcast>,
     players: &mut BTreeMap<UserId, Player>,

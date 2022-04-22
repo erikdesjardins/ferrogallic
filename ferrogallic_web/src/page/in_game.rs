@@ -1,9 +1,8 @@
-use crate::api::{WebSocketApiTask, WebSocketServiceExt};
+use crate::api::{connect_api, TypedWebSocketWriter};
 use crate::app;
 use crate::audio::AudioService;
 use crate::canvas::VirtualCanvas;
 use crate::component;
-use crate::util::NeqAssign;
 use anyhow::{anyhow, Error};
 use ferrogallic_shared::api::game::{Canvas, Game, GamePhase, GameReq, GameState, Player};
 use ferrogallic_shared::config::{CANVAS_HEIGHT, CANVAS_WIDTH};
@@ -11,20 +10,20 @@ use ferrogallic_shared::domain::{
     Color, Epoch, Guess, I12Pair, LineWidth, Lobby, Lowercase, Nickname, Tool, UserId,
 };
 use gloo::events::{EventListener, EventListenerOptions};
+use gloo::render::{request_animation_frame, AnimationFrame};
 use std::collections::BTreeMap;
+use std::convert::identity;
 use std::mem;
 use std::sync::Arc;
 use time::Duration;
 use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, HtmlElement, KeyboardEvent};
-use yew::services::render::{RenderService, RenderTask};
-use yew::services::websocket::WebSocketStatus;
-use yew::{
-    html, Callback, Component, ComponentLink, Html, NodeRef, PointerEvent, Properties, ShouldRender,
-};
+use yew::{html, Callback, Component, Context, Html, NodeRef, PointerEvent, Properties};
 
 pub enum Msg {
-    ConnStatus(WebSocketStatus),
+    WebSocketConnected(TypedWebSocketWriter<Game>),
+    WebSocketError(Error),
     Message(Game),
     RemovePlayer(UserId, Epoch<UserId>),
     ChooseWord(Lowercase),
@@ -35,7 +34,6 @@ pub enum Msg {
     SendGuess,
     SetTool(Tool),
     SetColor(Color),
-    SetGlobalError(Error),
     Ignore,
 }
 
@@ -45,22 +43,19 @@ pub enum PointerAction {
     Up(I12Pair),
 }
 
-#[derive(Clone, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct Props {
-    pub app_link: ComponentLink<app::App>,
+    pub app_link: Callback<app::Msg>,
     pub lobby: Lobby,
     pub nick: Nickname,
 }
 
 pub struct InGame {
-    link: ComponentLink<Self>,
-    app_link: ComponentLink<app::App>,
-    lobby: Lobby,
-    nick: Nickname,
+    link: Callback<Msg>,
     user_id: UserId,
-    active_ws: Option<WebSocketApiTask<Game>>,
+    active_ws: Option<TypedWebSocketWriter<Game>>,
     audio: AudioService,
-    scheduled_render: Option<RenderTask>,
+    scheduled_render: Option<AnimationFrame>,
     canvas_ref: NodeRef,
     canvas: Option<CanvasState>,
     pointer: PointerState,
@@ -88,13 +83,10 @@ impl Component for InGame {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
         Self {
-            link,
-            app_link: props.app_link,
-            lobby: props.lobby,
-            user_id: props.nick.user_id(),
-            nick: props.nick,
+            link: ctx.link().callback(identity),
+            user_id: ctx.props().nick.user_id(),
             active_ws: None,
             audio: AudioService::new(),
             scheduled_render: None,
@@ -110,39 +102,28 @@ impl Component for InGame {
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            Msg::ConnStatus(status) => match status {
-                WebSocketStatus::Opened => {
-                    if let Some(ws) = &mut self.active_ws {
-                        ws.send_api(&GameReq::Join(self.lobby.clone(), self.nick.clone()));
-                    }
-                    false
-                }
-                WebSocketStatus::Closed => {
-                    self.active_ws = None;
-                    self.app_link
-                        .send_message(app::Msg::SetError(anyhow!("Lost connection")));
-                    false
-                }
-                WebSocketStatus::Error => {
-                    self.active_ws = None;
-                    self.app_link
-                        .send_message(app::Msg::SetError(anyhow!("Error in websocket")));
-                    false
-                }
-            },
+            Msg::WebSocketConnected(writer) => {
+                self.active_ws = Some(writer);
+                false
+            }
+            Msg::WebSocketError(e) => {
+                self.active_ws = None;
+                ctx.props().app_link.emit(app::Msg::SetError(e));
+                false
+            }
             Msg::Message(msg) => match msg {
                 Game::Canvas(event) => {
                     self.render_to_virtual(event);
-                    self.schedule_render_to_canvas();
+                    self.schedule_render_to_canvas(ctx);
                     false
                 }
                 Game::CanvasBulk(events) => {
                     for event in events {
                         self.render_to_virtual(event);
                     }
-                    self.schedule_render_to_canvas();
+                    self.schedule_render_to_canvas(ctx);
                     false
                 }
                 Game::Players(players) => {
@@ -169,23 +150,16 @@ impl Component for InGame {
                 Game::Heartbeat => false,
             },
             Msg::RemovePlayer(user_id, epoch) => {
-                if let Some(ws) = &mut self.active_ws {
-                    ws.send_api(&GameReq::Remove(user_id, epoch));
-                }
+                self.send_if_connected(ctx, &GameReq::Remove(user_id, epoch));
                 false
             }
             Msg::ChooseWord(word) => {
-                if let Some(ws) = &mut self.active_ws {
-                    ws.send_api(&GameReq::Choose(word));
-                }
+                self.send_if_connected(ctx, &GameReq::Choose(word));
                 false
             }
             Msg::SendGuess => {
-                if let Some(ws) = &mut self.active_ws {
-                    if !self.guess.is_empty() {
-                        ws.send_api(&GameReq::Guess(mem::take(&mut self.guess)));
-                    }
-                }
+                let guess = mem::take(&mut self.guess);
+                self.send_if_connected(ctx, &GameReq::Guess(guess));
                 false
             }
             Msg::Pointer(action) => {
@@ -241,20 +215,16 @@ impl Component for InGame {
                 };
                 for &event in events {
                     self.render_to_virtual(event);
-                    self.schedule_render_to_canvas();
-                    if let Some(ws) = &mut self.active_ws {
-                        ws.send_api(&GameReq::Canvas(event));
-                    }
+                    self.schedule_render_to_canvas(ctx);
+                    self.send_if_connected(ctx, &GameReq::Canvas(event));
                 }
                 false
             }
             Msg::Undo => {
                 let event = Canvas::PopUndo;
                 self.render_to_virtual(event);
-                self.schedule_render_to_canvas();
-                if let Some(ws) = &mut self.active_ws {
-                    ws.send_api(&GameReq::Canvas(event));
-                }
+                self.schedule_render_to_canvas(ctx);
+                self.send_if_connected(ctx, &GameReq::Canvas(event));
                 false
             }
             Msg::Render => {
@@ -273,33 +243,16 @@ impl Component for InGame {
                 self.color = color;
                 true
             }
-            Msg::SetGlobalError(e) => {
-                self.app_link.send_message(app::Msg::SetError(e));
-                false
-            }
             Msg::Ignore => false,
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        let Props {
-            app_link,
-            lobby,
-            nick,
-        } = props;
-        self.app_link = app_link;
-        let new_lobby = self.lobby.neq_assign(lobby);
-        let new_nick = if nick != self.nick {
-            self.user_id = nick.user_id();
-            self.nick = nick;
-            true
-        } else {
-            false
-        };
-        new_lobby | new_nick
+    fn changed(&mut self, ctx: &Context<Self>) -> bool {
+        self.user_id = ctx.props().nick.user_id();
+        true
     }
 
-    fn rendered(&mut self, first_render: bool) {
+    fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
         if first_render {
             if let Some(canvas) = self.canvas_ref.cast::<HtmlCanvasElement>() {
                 if let Some(context) = canvas
@@ -322,24 +275,11 @@ impl Component for InGame {
                 }
             }
 
-            let started_ws = WebSocketServiceExt::connect_api(
-                &self.link,
-                |res| match res {
-                    Ok(msg) => Msg::Message(msg),
-                    Err(e) => Msg::SetGlobalError(e.context("Failed to receive from websocket")),
-                },
-                Msg::ConnStatus,
-            );
-            match started_ws {
-                Ok(task) => self.active_ws = Some(task),
-                Err(e) => self.app_link.send_message(app::Msg::SetError(
-                    e.context("Failed to connect to websocket"),
-                )),
-            }
+            self.connect_to_websocket(ctx);
         }
     }
 
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         enum Status<'a> {
             Waiting,
             Choosing(&'a Player),
@@ -397,7 +337,7 @@ impl Component for InGame {
         let on_pointermove;
         let on_pointerup;
         if can_draw {
-            on_keydown = self.link.callback(|e: KeyboardEvent| {
+            on_keydown = ctx.link().callback(|e: KeyboardEvent| {
                 let ctrl = e.ctrl_key();
                 let msg = match e.key_code() {
                     49 /* 1 */ if !ctrl => Msg::SetTool(Tool::Pen(LineWidth::R0)),
@@ -413,6 +353,7 @@ impl Component for InGame {
                 msg
             });
             on_pointerdown = self.handle_pointer_event_if(
+                ctx,
                 |e| e.buttons() == 1,
                 |e, target, at| {
                     if let Err(e) = target.focus() {
@@ -424,8 +365,8 @@ impl Component for InGame {
                     PointerAction::Down(at)
                 },
             );
-            on_pointermove = self.handle_pointer_event(|_, _, at| PointerAction::Move(at));
-            on_pointerup = self.handle_pointer_event(|e, target, at| {
+            on_pointermove = self.handle_pointer_event(ctx, |_, _, at| PointerAction::Move(at));
+            on_pointerup = self.handle_pointer_event(ctx, |e, target, at| {
                 if let Err(e) = target.release_pointer_capture(e.pointer_id()) {
                     log::warn!("Failed to release pointer capture: {:?}", e);
                 }
@@ -442,42 +383,42 @@ impl Component for InGame {
         html! {
             <main class="window" style="max-width: 1500px; margin: auto">
                 <div class="title-bar">
-                    <div class="title-bar-text">{"In Game - "}{&self.lobby}</div>
+                    <div class="title-bar-text">{"In Game - "}{&ctx.props().lobby}</div>
                 </div>
                 <article class="window-body" style="display: flex">
                     <section style="flex: 1; height: 804px">
-                        <component::Players game_link=self.link.clone() players=self.players.clone()/>
+                        <component::Players game_link={self.link.clone()} players={self.players.clone()}/>
                     </section>
-                    <section style="margin: 0 8px; position: relative" onkeydown=on_keydown>
+                    <section style="margin: 0 8px; position: relative" onkeydown={on_keydown}>
                         <fieldset style="padding-block-start: 2px; padding-block-end: 0px; padding-inline-start: 2px; padding-inline-end: 2px;">
                             <canvas
-                                ref=self.canvas_ref.clone()
+                                ref={self.canvas_ref.clone()}
                                 style={"outline: initial" /* disable focus outline */}
                                 tabindex={"-1" /* allow focus */}
-                                onpointerdown=on_pointerdown
-                                onpointermove=on_pointermove
-                                onpointerup=on_pointerup
-                                width=CANVAS_WIDTH.to_string()
-                                height=CANVAS_HEIGHT.to_string()
+                                onpointerdown={on_pointerdown}
+                                onpointermove={on_pointermove}
+                                onpointerup={on_pointerup}
+                                width={CANVAS_WIDTH.to_string()}
+                                height={CANVAS_HEIGHT.to_string()}
                             />
                         </fieldset>
                         <div style="position: relative">
-                            <component::ColorToolbar game_link=self.link.clone() color=self.color/>
-                            <component::ToolToolbar game_link=self.link.clone() tool=self.tool/>
+                            <component::ColorToolbar game_link={self.link.clone()} color={self.color}/>
+                            <component::ToolToolbar game_link={self.link.clone()} tool={self.tool}/>
                             <div
                                 class="hatched-background"
-                                style=if can_draw { "" } else { "position: absolute; top: 0; width: 100%; height: 100%" }
+                                style={if can_draw { "" } else { "position: absolute; top: 0; width: 100%; height: 100%" }}
                             />
                         </div>
                         {choose_words.map(|words| html! {
-                            <component::ChoosePopup game_link=self.link.clone() words=words />
+                            <component::ChoosePopup game_link={self.link.clone()} words={words} />
                         }).unwrap_or_default()}
                     </section>
                     <section style="flex: 1; height: 804px; display: flex; flex-direction: column">
                         <div style="flex: 1; min-height: 0; margin-bottom: 8px">
-                            <component::GuessArea players=self.players.clone() guesses=self.guesses.clone()/>
+                            <component::GuessArea players={self.players.clone()} guesses={self.guesses.clone()}/>
                         </div>
-                        <component::GuessInput game_link=self.link.clone() guess=self.guess.clone()/>
+                        <component::GuessInput game_link={self.link.clone()} guess={self.guess.clone()}/>
                     </section>
                 </article>
                 <footer class="status-bar">
@@ -490,7 +431,7 @@ impl Component for InGame {
                     </div>
                     <div>
                         {drawing_started.map(|drawing_started| html! {
-                            <component::Timer started=drawing_started count_down_from=Duration::seconds(i64::from(self.game.config.guess_seconds))/>
+                            <component::Timer started={drawing_started} count_down_from={Duration::seconds(i64::from(self.game.config.guess_seconds))}/>
                          }).unwrap_or_default()}
                          {"/"}{self.game.config.guess_seconds}{" seconds"}
                     </div>
@@ -502,7 +443,7 @@ impl Component for InGame {
                     </div>
                     <div style="width: calc((min(100vw - 16px, 1500px) - 804px) / 2 - 6px)">
                         {guess_template.map(|(word, reveal)| html! {
-                            <component::GuessTemplate word=word reveal=reveal guess=self.guess.clone()/>
+                            <component::GuessTemplate word={word} reveal={reveal} guess={self.guess.clone()}/>
                         }).unwrap_or_default()}
                     </div>
                 </footer>
@@ -512,19 +453,63 @@ impl Component for InGame {
 }
 
 impl InGame {
+    fn connect_to_websocket(&self, ctx: &Context<Self>) {
+        match connect_api() {
+            Ok((mut reader, mut writer)) => {
+                let link = ctx.link().clone();
+                let join_rec = GameReq::Join(ctx.props().lobby.clone(), ctx.props().nick.clone());
+                spawn_local(async move {
+                    match writer.wait_for_connection_and_send(&join_rec).await {
+                        Ok(()) => link.send_message(Msg::WebSocketConnected(writer)),
+                        Err(e) => link.send_message(Msg::WebSocketError(e)),
+                    }
+                });
+                let link = ctx.link().clone();
+                spawn_local(async move {
+                    loop {
+                        match reader.next_api().await {
+                            Some(Ok(msg)) => {
+                                link.send_message(Msg::Message(msg));
+                            }
+                            Some(Err(e)) => {
+                                link.send_message(Msg::WebSocketError(e));
+                                break;
+                            }
+                            None => {
+                                link.send_message(Msg::WebSocketError(anyhow!("Websocket closed")));
+                                break;
+                            }
+                        }
+                    }
+                });
+            }
+            Err(e) => ctx.link().send_message(Msg::WebSocketError(e)),
+        }
+    }
+
+    fn send_if_connected(&mut self, ctx: &Context<Self>, req: &GameReq) {
+        if let Some(ws) = &mut self.active_ws {
+            if let Err(e) = ws.send_sync(req) {
+                ctx.link().send_message(Msg::WebSocketError(e));
+            }
+        }
+    }
+
     fn handle_pointer_event(
         &self,
+        ctx: &Context<Self>,
         f: impl Fn(&PointerEvent, &HtmlElement, I12Pair) -> PointerAction + 'static,
     ) -> Callback<PointerEvent> {
-        self.handle_pointer_event_if(|_| true, f)
+        self.handle_pointer_event_if(ctx, |_| true, f)
     }
 
     fn handle_pointer_event_if(
         &self,
+        ctx: &Context<Self>,
         pred: impl Fn(&PointerEvent) -> bool + 'static,
         f: impl Fn(&PointerEvent, &HtmlElement, I12Pair) -> PointerAction + 'static,
     ) -> Callback<PointerEvent> {
-        self.link.callback(move |e: PointerEvent| {
+        ctx.link().callback(move |e: PointerEvent| {
             if pred(&e) {
                 if let Some(target) = e.target().and_then(|t| t.dyn_into::<HtmlElement>().ok()) {
                     e.prevent_default();
@@ -558,11 +543,12 @@ impl InGame {
         }
     }
 
-    fn schedule_render_to_canvas(&mut self) {
+    fn schedule_render_to_canvas(&mut self, ctx: &Context<Self>) {
         if let scheduled @ None = &mut self.scheduled_render {
-            *scheduled = Some(RenderService::request_animation_frame(
-                self.link.callback(|_| Msg::Render),
-            ));
+            let link = ctx.link().clone();
+            *scheduled = Some(request_animation_frame(move |_| {
+                link.send_message(Msg::Render)
+            }));
         }
     }
 

@@ -1,50 +1,33 @@
 use crate::app;
+use crate::util::ArcPtrEq;
 use anyhow::Error;
-use std::sync::Arc;
-use yew::utils::window;
-use yew::{html, Callback, Component, ComponentLink, Html, Properties, ShouldRender};
+use gloo::utils::window;
+use yew::{html, Callback, Component, Context, Html, Properties};
 
 pub enum Msg {}
 
-#[derive(Clone, Properties)]
+#[derive(Properties, PartialEq)]
 pub struct Props {
-    pub app_link: ComponentLink<app::App>,
-    pub error: Option<Arc<Error>>,
+    pub app_link: Callback<app::Msg>,
+    pub error: Option<ArcPtrEq<Error>>,
 }
 
-pub struct ErrorPopup {
-    app_link: ComponentLink<app::App>,
-    error: Option<Arc<Error>>,
-}
+pub struct ErrorPopup {}
 
 impl Component for ErrorPopup {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, _: ComponentLink<Self>) -> Self {
-        Self {
-            app_link: props.app_link,
-            error: props.error,
-        }
+    fn create(_ctx: &Context<Self>) -> Self {
+        Self {}
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {}
     }
 
-    fn change(&mut self, Props { app_link, error }: Self::Properties) -> ShouldRender {
-        self.app_link = app_link;
-        let error_changed = match (&self.error, &error) {
-            (Some(a), Some(b)) => !Arc::ptr_eq(a, b),
-            (None, None) => false,
-            _ => true,
-        };
-        self.error = error;
-        error_changed
-    }
-
-    fn view(&self) -> Html {
-        let e = match &self.error {
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let e = match &ctx.props().error {
             Some(e) => e,
             None => return html! {},
         };
@@ -54,7 +37,7 @@ impl Component for ErrorPopup {
             .map(|e| e.to_string())
             .collect::<Vec<_>>()
             .join("; caused by: ");
-        let on_close = self.app_link.callback(|_| app::Msg::ClearError);
+        let on_close = ctx.props().app_link.reform(|_| app::Msg::ClearError);
         let on_refresh = Callback::from(|_| {
             if let Err(e) = window().location().reload() {
                 log::error!("Failed to reload: {:?}", e);
@@ -67,7 +50,7 @@ impl Component for ErrorPopup {
                     <div class="title-bar">
                         <div class="title-bar-text">{"Error!"}</div>
                         <div class="title-bar-controls">
-                            <button aria-label="Close" onclick=on_close/>
+                            <button aria-label="Close" onclick={on_close}/>
                         </div>
                     </div>
                     <div class="window-body">
@@ -75,7 +58,7 @@ impl Component for ErrorPopup {
                             <pre>{message}</pre>
                         </p>
                         <section class="field-row" style="justify-content: flex-end">
-                            <button onclick=on_refresh>{"Refresh"}</button>
+                            <button onclick={on_refresh}>{"Refresh"}</button>
                         </section>
                     </div>
                 </div>

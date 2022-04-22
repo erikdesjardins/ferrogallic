@@ -8,6 +8,7 @@ mod app;
 mod audio;
 mod canvas;
 mod component;
+mod dom;
 mod page;
 mod route;
 mod util;
@@ -19,5 +20,5 @@ pub fn start() {
     #[cfg(debug_assertions)]
     wasm_logger::init(wasm_logger::Config::new(log::Level::Trace));
 
-    yew::start_app::<app::App>()
+    yew::start_app::<app::App>();
 }

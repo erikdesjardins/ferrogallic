@@ -3,22 +3,23 @@ use percent_encoding::{percent_decode, percent_encode, AsciiSet, CONTROLS};
 use std::fmt;
 use std::ops::Deref;
 use std::str::FromStr;
-use yew_router::Switch;
+use yew_router::Routable;
 
-#[derive(Clone, Switch)]
+#[derive(Clone, PartialEq, Routable)]
 pub enum AppRoute {
-    #[to = "/join/{lobby}/as/{nick}"]
+    #[at("/join/:lobby/as/:nick")]
     InGame {
         lobby: UrlEncoded<Lobby>,
         nick: UrlEncoded<Nickname>,
     },
-    #[to = "/join/{lobby}"]
+    #[at("/join/:lobby")]
     ChooseName { lobby: UrlEncoded<Lobby> },
-    #[to = "/create"]
+    #[at("/create")]
+    #[not_found]
     Create,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct UrlEncoded<T: FromStr>(pub T);
 
 impl<T: FromStr> FromStr for UrlEncoded<T> {

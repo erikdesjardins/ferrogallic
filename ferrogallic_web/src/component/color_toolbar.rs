@@ -1,53 +1,44 @@
 use crate::page;
-use crate::util::NeqAssign;
 use boolinator::Boolinator;
 use ferrogallic_shared::domain::Color;
-use yew::{classes, html, Component, ComponentLink, Html, Properties, ShouldRender};
+use yew::{classes, html, Callback, Component, Context, Html, Properties};
 
 pub enum Msg {}
 
-#[derive(Clone, Properties)]
+#[derive(PartialEq, Properties)]
 pub struct Props {
-    pub game_link: ComponentLink<page::InGame>,
+    pub game_link: Callback<page::in_game::Msg>,
     pub color: Color,
 }
 
-pub struct ColorToolbar {
-    game_link: ComponentLink<page::InGame>,
-    color: Color,
-}
+pub struct ColorToolbar {}
 
 impl Component for ColorToolbar {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(Props { game_link, color }: Self::Properties, _: ComponentLink<Self>) -> Self {
-        Self { game_link, color }
+    fn create(_ctx: &Context<Self>) -> Self {
+        Self {}
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {}
     }
 
-    fn change(&mut self, Props { game_link, color }: Self::Properties) -> ShouldRender {
-        self.game_link = game_link;
-        self.color.neq_assign(color)
-    }
-
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         let colors = Color::ALL
             .iter()
             .map(|&color| {
-                let on_click = self
+                let on_click = ctx.props()
                     .game_link
-                    .callback(move |_| page::in_game::Msg::SetColor(color));
-                let active = (color == self.color).as_some("active");
+                    .reform(move |_| page::in_game::Msg::SetColor(color));
+                let active = (color == ctx.props().color).as_some("active");
                 let style = format!(
                     "background-color: rgb({}, {}, {})",
                     color.r, color.g, color.b
                 );
                 html! {
-                    <button onclick=on_click class=classes!("color-button", active) style=style/>
+                    <button onclick={on_click} class={classes!("color-button", active)} style={style}/>
                 }
             })
             .collect::<Html>();
