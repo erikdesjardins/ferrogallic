@@ -1,4 +1,3 @@
-use boolinator::Boolinator;
 use ferrogallic_shared::domain::Lowercase;
 use itertools::{EitherOrBoth, Itertools};
 use yew::{classes, html, Component, Context, Html, Properties};
@@ -53,12 +52,12 @@ impl Component for GuessTemplate {
             .zip_longest(guess_chars)
             .map(|entry| match entry {
                 Both(template, guess) => {
-                    let underlined = template.is_underlined().as_some("underlined");
-                    let invalid = (!template.is_valid(guess)).as_some("invalid");
+                    let underlined = template.is_underlined().then_some("underlined");
+                    let invalid = (!template.is_valid(guess)).then_some("invalid");
                     html! { <span class={classes!("guess-char", underlined, invalid)}>{guess}</span> }
                 }
                 Left(template) => {
-                    let underlined = template.is_underlined().as_some("underlined");
+                    let underlined = template.is_underlined().then_some("underlined");
                     html! { <span class={classes!("guess-char", underlined)}>{template.char()}</span> }
                 }
                 Right(guess) => {
