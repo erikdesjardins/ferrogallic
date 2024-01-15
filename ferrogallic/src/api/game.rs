@@ -171,7 +171,7 @@ enum Broadcast {
 
 #[test]
 fn broadcast_size() {
-    assert_eq!(std::mem::size_of::<Broadcast>(), 56);
+    assert_eq!(std::mem::size_of::<Broadcast>(), 48);
 }
 
 async fn run_game_loop(
