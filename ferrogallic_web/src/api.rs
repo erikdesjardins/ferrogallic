@@ -16,7 +16,7 @@ pub async fn fetch_api<T: ApiEndpoint>(req: &T::Req) -> Result<T, Error> {
     let body = {
         // Safety: the vec backing `payload` is not resized, modified, or dropped while the Uint8Array exists
         let payload = unsafe { Uint8Array::view(&payload) };
-        let response = Request::post(&url).body(payload).send().await?;
+        let response = Request::post(&url).body(payload)?.send().await?;
         response.binary().await?
     };
     drop(payload);

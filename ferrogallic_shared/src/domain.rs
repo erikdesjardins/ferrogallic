@@ -129,6 +129,10 @@ impl Lowercase {
         str.make_ascii_lowercase();
         Self(str.into())
     }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 impl Default for Lowercase {
@@ -266,8 +270,8 @@ pub struct I12Pair {
 
 impl I12Pair {
     pub fn new(x: i16, y: i16) -> Self {
-        debug_assert!(-(1 << 11) <= x && x < (1 << 11), "x={} out of range", x);
-        debug_assert!(-(1 << 11) <= y && y < (1 << 11), "y={} out of range", y);
+        debug_assert!((-(1 << 11)..(1 << 11)).contains(&x), "x={} out of range", x);
+        debug_assert!((-(1 << 11)..(1 << 11)).contains(&y), "y={} out of range", y);
 
         Self {
             bytes: [

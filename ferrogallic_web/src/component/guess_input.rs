@@ -1,8 +1,8 @@
 use crate::dom::InputEventExt;
 use crate::page;
 use ferrogallic_shared::domain::Lowercase;
-use web_sys::InputEvent;
-use yew::{html, Callback, Component, Context, FocusEvent, Html, Properties};
+use web_sys::{InputEvent, SubmitEvent};
+use yew::{html, Callback, Component, Context, Html, Properties};
 
 pub enum Msg {}
 
@@ -30,7 +30,7 @@ impl Component for GuessInput {
         let on_change_guess = ctx.props().game_link.reform(|e: InputEvent| {
             page::in_game::Msg::SetGuess(Lowercase::new(e.target_value().trim()))
         });
-        let on_submit = ctx.props().game_link.reform(|e: FocusEvent| {
+        let on_submit = ctx.props().game_link.reform(|e: SubmitEvent| {
             e.prevent_default();
             page::in_game::Msg::SendGuess
         });

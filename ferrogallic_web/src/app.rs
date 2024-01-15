@@ -44,13 +44,13 @@ impl Component for App {
 
     fn view(&self, _ctx: &Context<Self>) -> Html {
         let app_link = self.link.clone();
-        let render_app = Switch::render(move |route| match route {
+        let render_app = move |route| match route {
             AppRoute::Create => html! {<page::Create app_link={app_link.clone()}/>},
             AppRoute::ChooseName { lobby } => html! {<page::ChooseName lobby={lobby.0.clone()}/>},
             AppRoute::InGame { lobby, nick } => {
                 html! {<page::InGame app_link={app_link.clone()} lobby={lobby.0.clone()} nick={nick.0.clone()}/>}
             }
-        });
+        };
         html! {
             <>
                 <BrowserRouter>

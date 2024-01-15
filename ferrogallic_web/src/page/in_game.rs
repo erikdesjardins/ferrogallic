@@ -247,8 +247,8 @@ impl Component for InGame {
         }
     }
 
-    fn changed(&mut self, ctx: &Context<Self>) -> bool {
-        self.user_id = ctx.props().nick.user_id();
+    fn changed(&mut self, _ctx: &Context<Self>, props: &Self::Properties) -> bool {
+        self.user_id = props.nick.user_id();
         true
     }
 
