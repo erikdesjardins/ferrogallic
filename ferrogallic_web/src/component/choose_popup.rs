@@ -36,7 +36,7 @@ impl Component for ChoosePopup {
                     move |_| page::in_game::Msg::ChooseWord(word.clone())
                 });
                 html! {
-                    <button onclick={on_click}>{word}</button>
+                    <button onclick={on_click}>{word.as_str()}</button>
                 }
             })
             .collect::<Html>();

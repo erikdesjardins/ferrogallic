@@ -1,8 +1,8 @@
 use crate::dom::InputEventExt;
 use crate::route::{AppRoute, UrlEncoded};
 use ferrogallic_shared::domain::{Lobby, Nickname};
-use yew::{html, Component, Context, FocusEvent, Html, InputEvent, Properties};
-use yew_router::history::History;
+use web_sys::SubmitEvent;
+use yew::{html, Component, Context, Html, InputEvent, Properties};
 use yew_router::scope_ext::RouterScopeExt;
 
 pub enum Msg {
@@ -36,8 +36,8 @@ impl Component for ChooseName {
                 true
             }
             Msg::GoToLobby => {
-                if let Some(history) = ctx.link().history() {
-                    history.push(AppRoute::InGame {
+                if let Some(navigator) = ctx.link().navigator() {
+                    navigator.push(&AppRoute::InGame {
                         lobby: UrlEncoded(ctx.props().lobby.clone()),
                         nick: UrlEncoded(self.nick.clone()),
                     });
@@ -51,7 +51,7 @@ impl Component for ChooseName {
         let on_change_nick = ctx
             .link()
             .callback(|e: InputEvent| Msg::SetNick(Nickname::new(e.target_value())));
-        let on_join_game = ctx.link().callback(|e: FocusEvent| {
+        let on_join_game = ctx.link().callback(|e: SubmitEvent| {
             e.prevent_default();
             Msg::GoToLobby
         });

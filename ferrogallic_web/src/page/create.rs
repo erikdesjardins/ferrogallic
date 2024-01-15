@@ -6,9 +6,8 @@ use anyhow::Error;
 use ferrogallic_shared::api::lobby::RandomLobbyName;
 use ferrogallic_shared::domain::Lobby;
 use wasm_bindgen_futures::spawn_local;
-use web_sys::InputEvent;
-use yew::{html, Callback, Component, Context, FocusEvent, Html, Properties};
-use yew_router::history::History;
+use web_sys::{InputEvent, SubmitEvent};
+use yew::{html, Callback, Component, Context, Html, Properties};
 use yew_router::scope_ext::RouterScopeExt;
 
 pub enum Msg {
@@ -51,16 +50,16 @@ impl Component for Create {
                 true
             }
             Msg::GoToCustomLobby => {
-                if let Some(history) = ctx.link().history() {
-                    history.push(AppRoute::ChooseName {
+                if let Some(navigator) = ctx.link().navigator() {
+                    navigator.push(&AppRoute::ChooseName {
                         lobby: UrlEncoded(self.custom_lobby_name.clone()),
                     });
                 }
                 false
             }
             Msg::GoToGeneratedLobby => {
-                if let Some(history) = ctx.link().history() {
-                    history.push(AppRoute::ChooseName {
+                if let Some(navigator) = ctx.link().navigator() {
+                    navigator.push(&AppRoute::ChooseName {
                         lobby: UrlEncoded(self.generated_lobby_name.clone()),
                     });
                 }
@@ -89,11 +88,11 @@ impl Component for Create {
         let on_change_custom_lobby = ctx
             .link()
             .callback(|e: InputEvent| Msg::SetCustomLobbyName(Lobby::new(e.target_value())));
-        let on_join_custom = ctx.link().callback(|e: FocusEvent| {
+        let on_join_custom = ctx.link().callback(|e: SubmitEvent| {
             e.prevent_default();
             Msg::GoToCustomLobby
         });
-        let on_join_generated = ctx.link().callback(|e: FocusEvent| {
+        let on_join_generated = ctx.link().callback(|e: SubmitEvent| {
             e.prevent_default();
             Msg::GoToGeneratedLobby
         });

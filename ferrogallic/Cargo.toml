@@ -13,10 +13,10 @@ argh = "0.1"
 bincode = "1.2"
 ferrogallic_shared = { path = "../ferrogallic_shared" }
 futures = "0.3"
-env_logger = { version = "0.9", default-features = false, features = ["humantime"] }
+env_logger = { version = "0.10", default-features = false, features = ["humantime"] }
 log = "0.4"
 rand = "0.8"
-strsim = "0.10"
+strsim = "0.11"
 time = { version = "0.3", default-features = false, features = ["std"] }
 tokio = { version = "1.0", features = ["fs", "io-util", "macros", "rt", "rt-multi-thread", "sync", "time", "parking_lot"] }
 tokio-util = { version = "0.7", features = ["time"] }
