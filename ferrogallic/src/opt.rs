@@ -1,13 +1,12 @@
-use argh::FromArgs;
+use clap::{ArgAction, Parser};
 use std::net::SocketAddr;
 
-/// Clone of skribble.io.
-#[derive(Debug, FromArgs)]
+#[derive(Parser, Debug)]
+#[clap(version, about)]
 pub struct Options {
-    /// logging verbosity (-v info, -v -v debug, -v -v -v trace)
-    #[argh(switch, short = 'v')]
+    /// logging verbosity (-v info, -vv debug, -vvv trace)
+    #[arg(short = 'v', long = "verbose", action = ArgAction::Count, global = true)]
     pub verbose: u8,
 
-    #[argh(positional)]
     pub listen_addr: SocketAddr,
 }

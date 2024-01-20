@@ -17,7 +17,7 @@ async fn main() {
     let opt::Options {
         verbose,
         listen_addr,
-    } = argh::from_env();
+    } = clap::Parser::parse();
 
     env_logger::Builder::new()
         .filter_level(match verbose {
