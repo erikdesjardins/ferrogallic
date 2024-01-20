@@ -13,7 +13,7 @@ bincode = "1.2"
 clap = { version = "4", features = ["derive"] }
 ferrogallic_shared = { path = "../ferrogallic_shared" }
 futures = "0.3"
-env_logger = { version = "0.10", default-features = false, features = ["humantime"] }
+env_logger = { version = "0.11", default-features = false, features = ["humantime"] }
 log = "0.4"
 rand = "0.8"
 strsim = "0.11"
